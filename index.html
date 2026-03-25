@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://chinimuruhi.github.io;">
+  <title>IIDX 曲名サジェスト</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    /* ========== CSS変数（テーマ） ========== */
+    :root {
+      --bg:        #f5f5f5;
+      --surface:   #ffffff;
+      --border:    #dddddd;
+      --text:      #111111;
+      --subtext:   #555555;
+      --accent:    #0055cc;
+      --accent2:   #003399;
+      --top-bg:    #e8f0fe;
+      --top-border:#0055cc;
+      --btn-bg:    #0055cc;
+      --btn-text:  #ffffff;
+      --score-bg:  #e0e0e0;
+      --score-text:#333333;
+      --toast-bg:  #333333;
+      --toast-text:#ffffff;
+      --theme-btn-bg:   #eeeeee;
+      --theme-btn-text: #333333;
+    }
+    [data-theme="dark"] {
+      --bg:        #0d0d0d;
+      --surface:   #1a1a2e;
+      --border:    #333355;
+      --text:      #e0e0e0;
+      --subtext:   #aaaaaa;
+      --accent:    #6699ff;
+      --accent2:   #4477cc;
+      --top-bg:    #1a1a3e;
+      --top-border:#6699ff;
+      --btn-bg:    #4466cc;
+      --btn-text:  #ffffff;
+      --score-bg:  #2a2a4a;
+      --score-text:#cccccc;
+      --toast-bg:  #eeeeee;
+      --toast-text:#111111;
+      --theme-btn-bg:   #222244;
+      --theme-btn-text: #cccccc;
+    }
+    [data-theme="sparkle"] {
+      --bg:        #f5ffe0;
+      --surface:   #ffffff;
+      --border:    #aadd00;
+      --text:      #1a3300;
+      --subtext:   #4a7010;
+      --accent:    #77bb00;
+      --accent2:   #559900;
+      --top-bg:    #eeffaa;
+      --top-border:#77bb00;
+      --btn-bg:    #77bb00;
+      --btn-text:  #ffffff;
+      --score-bg:  #ddff88;
+      --score-text:#2a5000;
+      --toast-bg:  #77bb00;
+      --toast-text:#ffffff;
+      --theme-btn-bg:   #eeff99;
+      --theme-btn-text: #2a5000;
+    }
+    [data-theme="tricoro"] {
+      --bg:        #ffffff;
+      --surface:   #f8f8fc;
+      --border:    #ddddee;
+      --text:      #111111;
+      --subtext:   #666666;
+      --accent:    #cc1111;
+      --accent2:   #0033bb;
+      --top-bg:    #fff5f5;
+      --top-border:#cc1111;
+      --btn-bg:    #0033bb;
+      --btn-text:  #ffffff;
+      --score-bg:  #ffee44;
+      --score-text:#333300;
+      --toast-bg:  #cc1111;
+      --toast-text:#ffffff;
+      --theme-btn-bg:   #f0f0f8;
+      --theme-btn-text: #333333;
+    }
+
+    /* ========== リセット・基本 ========== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans JP', sans-serif;
+      min-height: 100vh;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    /* ========== ヘッダー ========== */
+    header {
+      background: var(--surface);
+      border-bottom: 2px solid var(--accent);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(0.9rem, 3vw, 1.4rem);
+      font-weight: 900;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    /* ========== テーマ切り替え ========== */
+    .theme-switcher {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .theme-btn {
+      background: var(--theme-btn-bg);
+      color: var(--theme-btn-text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.65rem;
+      font-family: 'Orbitron', sans-serif;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      white-space: nowrap;
+    }
+    .theme-btn:hover, .theme-btn[aria-pressed="true"] {
+      background: var(--accent);
+      color: var(--btn-text);
+      border-color: var(--accent);
+    }
+
+    /* ========== 検索エリア ========== */
+    .search-area {
+      max-width: 720px;
+      margin: 32px auto 0;
+      padding: 0 16px;
+    }
+    .search-label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--subtext);
+      margin-bottom: 8px;
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 0.04em;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--surface);
+      color: var(--text);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 1.1rem;
+      font-family: 'Noto Sans JP', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus { border-color: var(--accent); }
+    .search-input::placeholder { color: var(--subtext); opacity: 0.6; }
+
+    .search-hint {
+      margin-top: 8px;
+      font-size: 0.78rem;
+      color: var(--subtext);
+    }
+
+    /* ========== フィルターバー ========== */
+    .filter-bar {
+      max-width: 720px;
+      margin: 14px auto 0;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .filter-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.68rem;
+      color: var(--subtext);
+      letter-spacing: 0.06em;
+      flex-shrink: 0;
+    }
+    .filter-btn {
+      background: var(--theme-btn-bg);
+      color: var(--theme-btn-text);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 0.75rem;
+      font-family: 'Noto Sans JP', sans-serif;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      white-space: nowrap;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .filter-btn[aria-pressed="true"] {
+      background: var(--accent);
+      color: var(--btn-text);
+      border-color: var(--accent);
+    }
+
+    /* ========== サブ情報（アーティスト・バージョン） ========== */
+    .song-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 4px;
+    }
+    .song-artist {
+      font-size: 0.78rem;
+      color: var(--subtext);
+      font-family: 'Noto Sans JP', sans-serif;
+      word-break: break-all;
+    }
+    .song-artist-latin {
+      font-size: 0.75rem;
+      color: var(--subtext);
+      font-family: 'Orbitron', sans-serif;
+      word-break: break-all;
+    }
+    .song-version {
+      font-size: 0.7rem;
+      color: var(--subtext);
+      font-family: 'Orbitron', sans-serif;
+      opacity: 0.75;
+    }
+    .song-version[hidden] { display: none; }
+
+    /* ========== デバッグトグル ========== */
+    .debug-toggle-wrap {
+      max-width: 720px;
+      margin: 12px auto 0;
+      padding: 0 16px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .debug-toggle {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--subtext);
+      font-size: 0.72rem;
+      padding: 3px 10px;
+      cursor: pointer;
+      font-family: 'Orbitron', sans-serif;
+    }
+    .debug-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ========== ローディング ========== */
+    .loading {
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 0 16px;
+      text-align: center;
+      color: var(--subtext);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+    }
+    .loading-spinner {
+      display: inline-block;
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ========== 結果エリア ========== */
+    .results-area {
+      max-width: 720px;
+      margin: 24px auto 60px;
+      padding: 0 16px;
+    }
+    .results-empty {
+      text-align: center;
+      color: var(--subtext);
+      font-size: 0.88rem;
+      padding: 32px 0;
+    }
+
+    /* ========== Top 1 カード ========== */
+    .top-card {
+      background: var(--top-bg);
+      border: 2px solid var(--top-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .top-card-badge {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      position: absolute;
+      top: 8px;
+      left: 16px;
+    }
+    .top-card-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(1rem, 4vw, 1.5rem);
+      font-weight: 900;
+      color: var(--accent);
+      word-break: break-all;
+      padding-top: 14px;
+    }
+    .top-card-title-jp {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: clamp(1rem, 4vw, 1.5rem);
+      font-weight: 700;
+      color: var(--accent);
+      word-break: break-all;
+      padding-top: 14px;
+    }
+    .top-card-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    /* ========== 候補リスト ========== */
+    .candidate-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .candidate-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      transition: border-color 0.2s;
+    }
+    .candidate-item:hover { border-color: var(--accent2); }
+    .candidate-rank {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+      color: var(--subtext);
+      width: 20px;
+      flex-shrink: 0;
+    }
+    .candidate-name {
+      font-size: 0.92rem;
+      word-break: break-all;
+      flex: 1;
+    }
+    .candidate-name-latin { font-family: 'Orbitron', sans-serif; font-size: 0.88rem; }
+
+    /* ========== スコアバッジ ========== */
+    .score-badge {
+      background: var(--score-bg);
+      color: var(--score-text);
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .score-badge[hidden] { display: none; }
+
+    /* ========== コピーボタン ========== */
+    .copy-btn {
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.72rem;
+      font-family: 'Noto Sans JP', sans-serif;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: opacity 0.2s;
+      position: relative;
+    }
+    .copy-btn:hover { opacity: 0.85; }
+
+    /* 吹き出し */
+    .copy-toast {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      right: 0;
+      background: var(--toast-bg);
+      color: var(--toast-text);
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .copy-toast::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      right: 12px;
+      border: 5px solid transparent;
+      border-top-color: var(--toast-bg);
+    }
+    .copy-toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ========== エラー表示 ========== */
+    .error-msg {
+      max-width: 720px;
+      margin: 24px auto;
+      padding: 14px 20px;
+      background: #ffeeee;
+      border: 1px solid #cc4444;
+      border-radius: 8px;
+      color: #cc2222;
+      font-size: 0.88rem;
+    }
+    [data-theme="dark"] .error-msg { background: #3a1a1a; border-color: #cc4444; color: #ff8888; }
+
+    /* ========== レスポンシブ ========== */
+    @media (max-width: 500px) {
+      header { padding: 12px 14px; }
+      .theme-btn { padding: 3px 6px; font-size: 0.58rem; }
+      .top-card { flex-direction: column; align-items: flex-start; }
+      .top-card-right { flex-direction: row; align-items: center; width: 100%; justify-content: flex-end; }
+      .candidate-item { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="header-title">IIDX SONG FINDER</span>
+  <div class="theme-switcher" role="group" aria-label="テーマ切り替え">
+    <button class="theme-btn" data-theme-target="light"   aria-pressed="true">LIGHT</button>
+    <button class="theme-btn" data-theme-target="dark"    aria-pressed="false">DARK</button>
+    <button class="theme-btn" data-theme-target="sparkle" aria-pressed="false">SPARKLE</button>
+    <button class="theme-btn" data-theme-target="tricoro" aria-pressed="false">TRICORO</button>
+  </div>
+</header>
+
+<main>
+  <section class="search-area">
+    <label class="search-label" for="searchInput">SONG TITLE SEARCH</label>
+    <input
+      id="searchInput"
+      class="search-input"
+      type="text"
+      placeholder="なんとなく入力してみてください..."
+      autocomplete="off"
+      maxlength="100"
+      aria-label="曲名検索"
+    >
+    <p class="search-hint">大文字小文字・記号が思い出せなくても大丈夫です</p>
+  </section>
+
+  <div class="filter-bar" role="group" aria-label="表示する楽曲のフィルター">
+    <span class="filter-label">FILTER:</span>
+    <button class="filter-btn" data-filter="all" aria-pressed="true"  type="button">全曲</button>
+    <button class="filter-btn" data-filter="ac"  aria-pressed="false" type="button">AC版</button>
+    <button class="filter-btn" data-filter="inf" aria-pressed="false" type="button">INFINITAS</button>
+  </div>
+
+  <div class="debug-toggle-wrap">
+    <button class="debug-toggle" id="versionToggle" aria-pressed="false">収録バージョン表示: OFF</button>
+    <button class="debug-toggle" id="debugToggle"   aria-pressed="false">スコア表示: OFF</button>
+  </div>
+
+  <div id="loadingArea" class="loading" hidden>
+    <div class="loading-spinner"></div>
+    <div>楽曲データを読み込んでいます...</div>
+  </div>
+
+  <div id="errorArea" class="error-msg" hidden></div>
+
+  <section class="results-area" id="resultsArea" aria-live="polite" aria-label="検索結果"></section>
+</main>
+
+<script>
+'use strict';
+
+/* ============================================================
+   データソース設定（ここだけ変更すればOK）
+   ============================================================ */
+const DATA_SOURCE = {
+  mode: 'remote',  // 'remote' | 'local'
+  remote: {
+    titleUrl:      'https://chinimuruhi.github.io/IIDX-Data-Table/textage/title.json',
+    normalizedUrl: 'https://chinimuruhi.github.io/IIDX-Data-Table/textage/normalized-title.json',
+    chartInfoUrl:  'https://chinimuruhi.github.io/IIDX-Data-Table/textage/chart-info.json',
+    songInfoUrl:   'https://chinimuruhi.github.io/IIDX-Data-Table/textage/song-info.json',
+    versionUrl:    'https://chinimuruhi.github.io/IIDX-Data-Table/textage/version.json',
+  },
+  local: {
+    titleUrl:      './data/title.json',
+    normalizedUrl: './data/normalized-title.json',
+    chartInfoUrl:  './data/chart-info.json',
+    songInfoUrl:   './data/song-info.json',
+    versionUrl:    './data/version.json',
+  },
+};
+
+function getDataUrls() { return DATA_SOURCE[DATA_SOURCE.mode]; }
+
+/* ============================================================
+   キャッシュ設定
+   ============================================================ */
+const CACHE_KEY_TITLE      = 'iidx_titles_v1';
+const CACHE_KEY_NORMALIZED = 'iidx_normalized_v1';
+const CACHE_KEY_CHART      = 'iidx_chart_v1';
+const CACHE_KEY_SONG_INFO  = 'iidx_songinfo_v1';
+const CACHE_KEY_VERSION    = 'iidx_version_v1';
+const CACHE_TTL = 24 * 60 * 60 * 1000;
+
+/* ============================================================
+   セキュリティ：入力サニタイズ
+   ============================================================ */
+function sanitizeInput(raw) {
+  if (typeof raw !== 'string') return '';
+  return raw.slice(0, 100).trim().replace(/[\x00-\x1F\x7F]/g, '');
+}
+
+function sanitizeTitles(raw) {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('Invalid data format');
+  }
+  const result = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k === 'string' && typeof v === 'string') {
+      result[k] = v.slice(0, 300);
+    }
+  }
+  return result;
+}
+
+function sanitizeSongInfo(raw) {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('Invalid song-info format');
+  }
+  const result = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k === 'string' && typeof v === 'object' && v !== null) {
+      result[k] = {
+        artist:  typeof v.artist  === 'string' ? v.artist.slice(0, 200) : '',
+        version: typeof v.version === 'number' ? v.version : -1,
+      };
+    }
+  }
+  return result;
+}
+
+function sanitizeVersionNames(raw) {
+  if (!Array.isArray(raw)) throw new Error('Invalid version format');
+  return raw.filter(v => typeof v === 'string').map(v => v.slice(0, 100));
+}
+
+function sanitizeChartInfo(raw) {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('Invalid chart-info format');
+  }
+  const result = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k === 'string' && typeof v === 'object' && v !== null) {
+      result[k] = {
+        in_ac:  v.in_ac  === true,
+        in_inf: v.in_inf === true,
+      };
+    }
+  }
+  return result;
+}
+
+/* ============================================================
+   LocalStorageキャッシュ
+   ============================================================ */
+function loadCache(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.data !== 'object' || typeof parsed.timestamp !== 'number') return null;
+    if (Date.now() - parsed.timestamp >= CACHE_TTL) { localStorage.removeItem(key); return null; }
+    return parsed.data;
+  } catch {
+    localStorage.removeItem(key);
+    return null;
+  }
+}
+
+function saveCache(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch { /* quota超過等は無視 */ }
+}
+
+/* ============================================================
+   データ取得
+   ============================================================ */
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('json')) throw new Error('Invalid content type');
+  return res.json();
+}
+
+async function loadSongData() {
+  // localモードはキャッシュしない
+  if (DATA_SOURCE.mode === 'local') {
+    const urls = getDataUrls();
+    const [titleRaw, normRaw, chartRaw, songInfoRaw, versionRaw] = await Promise.all([
+      fetchJson(urls.titleUrl),
+      fetchJson(urls.normalizedUrl),
+      fetchJson(urls.chartInfoUrl),
+      fetchJson(urls.songInfoUrl),
+      fetchJson(urls.versionUrl),
+    ]);
+    return {
+      title:        sanitizeTitles(titleRaw),
+      normalized:   sanitizeTitles(normRaw),
+      chart:        sanitizeChartInfo(chartRaw),
+      songInfo:     sanitizeSongInfo(songInfoRaw),
+      versionNames: sanitizeVersionNames(versionRaw),
+    };
+  }
+
+  // remoteモード：24時間キャッシュ（全ファイルキャッシュ済みなら fetch しない）
+  const cachedTitle    = loadCache(CACHE_KEY_TITLE);
+  const cachedNorm     = loadCache(CACHE_KEY_NORMALIZED);
+  const cachedChart    = loadCache(CACHE_KEY_CHART);
+  const cachedSongInfo = loadCache(CACHE_KEY_SONG_INFO);
+  const cachedVersion  = loadCache(CACHE_KEY_VERSION);
+  if (cachedTitle && cachedNorm && cachedChart && cachedSongInfo && cachedVersion) {
+    return {
+      title:        cachedTitle,
+      normalized:   cachedNorm,
+      chart:        cachedChart,
+      songInfo:     cachedSongInfo,
+      versionNames: cachedVersion,
+    };
+  }
+
+  const urls = getDataUrls();
+  const [titleRaw, normRaw, chartRaw, songInfoRaw, versionRaw] = await Promise.all([
+    fetchJson(urls.titleUrl),
+    fetchJson(urls.normalizedUrl),
+    fetchJson(urls.chartInfoUrl),
+    fetchJson(urls.songInfoUrl),
+    fetchJson(urls.versionUrl),
+  ]);
+  const title        = sanitizeTitles(titleRaw);
+  const normalized   = sanitizeTitles(normRaw);
+  const chart        = sanitizeChartInfo(chartRaw);
+  const songInfo     = sanitizeSongInfo(songInfoRaw);
+  const versionNames = sanitizeVersionNames(versionRaw);
+  saveCache(CACHE_KEY_TITLE,      title);
+  saveCache(CACHE_KEY_NORMALIZED, normalized);
+  saveCache(CACHE_KEY_CHART,      chart);
+  saveCache(CACHE_KEY_SONG_INFO,  songInfo);
+  saveCache(CACHE_KEY_VERSION,    versionNames);
+  return { title, normalized, chart, songInfo, versionNames };
+}
+
+/* ============================================================
+   テキスト正規化（類似度計算用）
+   ============================================================ */
+
+/** スペースを保持したまま記号のみ除去（単語分割アルゴリズム用） */
+function normalizeWithSpaces(str) {
+  return str
+    .toLowerCase()
+    .replace(/[^\w\u3040-\u30ff\u4e00-\u9fff\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** スペースも記号も全て除去（前方一致・N-gram・音声アルゴリズム用） */
+function normalizeNoSpaces(str) {
+  return normalizeWithSpaces(str).replace(/\s/g, '');
+}
+
+/* ============================================================
+   類似度アルゴリズム群
+
+   各 fn は ctx オブジェクトを受け取る:
+     ctx.noSp    … 入力（スペースなし正規化）
+     ctx.noSp_c  … 候補（スペースなし正規化）
+     ctx.withSp  … 入力（スペースあり正規化）
+     ctx.withSp_c… 候補（スペースあり正規化）
+   ============================================================ */
+
+/* ---- Double Metaphone（簡易実装） ---- */
+function doubleMetaphone(str) {
+  if (!str) return ['', ''];
+  const s = str.toUpperCase().replace(/[^A-Z]/g, '');
+  if (!s) return ['', ''];
+
+  let pri = '', sec = '';
+  let i = 0;
+  const len = s.length;
+
+  function add(p, s2) {
+    pri += p;
+    sec += (s2 !== undefined ? s2 : p);
+  }
+  function at(pos, ...chars) { return chars.includes(s[pos]); }
+  function substr(pos, n) { return s.slice(pos, pos + n); }
+
+  // 先頭の特殊ケース
+  if (substr(0, 2).match(/^(GN|KN|PN|AE|WR)/)) i = 1;
+  if (s[0] === 'X') { add('S'); i = 1; }
+
+  while (i < len) {
+    const c = s[i];
+    switch (c) {
+      case 'A': case 'E': case 'I': case 'O': case 'U': case 'Y':
+        if (i === 0) add('A');
+        i++; break;
+      case 'B':
+        add('P');
+        i += (s[i + 1] === 'B' ? 2 : 1); break;
+      case 'C':
+        if (i > 0 && s[i - 1] !== 'S' && substr(i, 2) === 'CI' && substr(i, 4) !== 'CIAN') {
+          add('X'); i += 2; break;
+        }
+        if (substr(i, 2) === 'CE' || substr(i, 2) === 'CI') {
+          add('S', 'X'); i += 2; break;
+        }
+        if (substr(i, 2) === 'CH') {
+          add('X', 'K'); i += 2; break;
+        }
+        add('K'); i += (s[i + 1] === 'C' ? 2 : 1); break;
+      case 'D':
+        if (substr(i, 2) === 'DG' && at(i + 2, 'I', 'E', 'Y')) {
+          add('J'); i += 3; break;
+        }
+        add('T'); i += (substr(i, 2) === 'DT' || substr(i, 2) === 'DD' ? 2 : 1); break;
+      case 'F': add('F'); i += (s[i + 1] === 'F' ? 2 : 1); break;
+      case 'G':
+        if (at(i + 1, 'E', 'I', 'Y')) { add('K', 'J'); i += 2; break; }
+        if (substr(i, 2) === 'GH') { add('K'); i += 2; break; }
+        if (substr(i, 2) === 'GN') { i += 2; break; }
+        add('K'); i += (s[i + 1] === 'G' ? 2 : 1); break;
+      case 'H':
+        if (at(i + 1, 'A', 'E', 'I', 'O', 'U')) { add('H'); }
+        i++; break;
+      case 'J': add('J', 'H'); i++; break;
+      case 'K': add('K'); i += (s[i + 1] === 'K' ? 2 : 1); break;
+      case 'L': add('L'); i += (s[i + 1] === 'L' ? 2 : 1); break;
+      case 'M':
+        add('M');
+        i += (substr(i, 3) === 'MBM' || s[i + 1] === 'M' ? 2 : 1); break;
+      case 'N': add('N'); i += (s[i + 1] === 'N' ? 2 : 1); break;
+      case 'P':
+        if (s[i + 1] === 'H') { add('F'); i += 2; break; }
+        add('P'); i += (s[i + 1] === 'P' ? 2 : 1); break;
+      case 'Q': add('K'); i += (s[i + 1] === 'Q' ? 2 : 1); break;
+      case 'R': add('R'); i += (s[i + 1] === 'R' ? 2 : 1); break;
+      case 'S':
+        if (substr(i, 3) === 'SCH') { add('X', 'SK'); i += 3; break; }
+        if (substr(i, 2) === 'SH' || substr(i, 2).match(/^S[IY]/)) { add('X'); i += 2; break; }
+        add('S'); i += (s[i + 1] === 'S' ? 2 : 1); break;
+      case 'T':
+        if (substr(i, 2) === 'TH') { add('0', 'T'); i += 2; break; }
+        if (substr(i, 3).match(/^T[IY]A/)) { add('X'); i += 3; break; }
+        add('T'); i += (substr(i, 2) === 'TT' || substr(i, 2) === 'TD' ? 2 : 1); break;
+      case 'V': add('F'); i++; break;
+      case 'W':
+        if (at(i + 1, 'A', 'E', 'I', 'O', 'U')) { add('A'); }
+        i++; break;
+      case 'X': add('KS'); i++; break;
+      case 'Z':
+        if (s[i + 1] === 'Z') { add('S'); i += 2; break; }
+        add('S', 'TS'); i++; break;
+      default: i++;
+    }
+  }
+  return [pri.slice(0, 6), sec.slice(0, 6)];
+}
+
+function phoneticSimilarity(a, b) {
+  if (!a || !b) return 0;
+  const aOnly = a.replace(/[^\x00-\x7F]/g, '');
+  const bOnly = b.replace(/[^\x00-\x7F]/g, '');
+  if (!aOnly || !bOnly) return 0;
+
+  const [ap1, ap2] = doubleMetaphone(aOnly);
+  const [bp1, bp2] = doubleMetaphone(bOnly);
+  if (!ap1 || !bp1) return 0;
+
+  const scores = [
+    cosineSim(ap1, bp1),
+    cosineSim(ap1, bp2),
+    cosineSim(ap2, bp1),
+    cosineSim(ap2, bp2),
+  ];
+  return Math.max(...scores);
+}
+
+function cosineSim(a, b) {
+  if (!a || !b) return 0;
+  const maxLen = Math.max(a.length, b.length);
+  let matches = 0;
+  const minLen = Math.min(a.length, b.length);
+  for (let i = 0; i < minLen; i++) if (a[i] === b[i]) matches++;
+  return matches / maxLen;
+}
+
+/* ---- Levenshtein Distance ---- */
+function levenshtein(a, b) {
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => i);
+  for (let j = 1; j <= b.length; j++) {
+    let prev = dp[0];
+    dp[0] = j;
+    for (let i = 1; i <= a.length; i++) {
+      const tmp = dp[i];
+      dp[i] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[i], dp[i - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[a.length];
+}
+
+function levenshteinSimilarity(a, b) {
+  if (!a && !b) return 1;
+  const dist = levenshtein(a, b);
+  return 1 - dist / Math.max(a.length, b.length, 1);
+}
+
+/* ---- Bigram Jaccard ---- */
+function bigrams(s) {
+  const set = new Set();
+  for (let i = 0; i < s.length - 1; i++) set.add(s[i] + s[i + 1]);
+  return set;
+}
+
+function ngramSimilarity(a, b) {
+  if (!a || !b) return 0;
+  if (a.length < 2 || b.length < 2) {
+    // 1文字の場合は単純一致
+    return a[0] === b[0] ? 1 : 0;
+  }
+  const ba = bigrams(a), bb = bigrams(b);
+  let intersection = 0;
+  for (const g of ba) if (bb.has(g)) intersection++;
+  const union = ba.size + bb.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+/* ---- Prefix Match ---- */
+function prefixSimilarity(input, candidate) {
+  if (!input || !candidate) return 0;
+  // 候補が入力で始まる（最も強いケース）
+  if (candidate.startsWith(input)) {
+    // 完全一致に近いほど高く、完全一致なら1.0
+    return 0.7 + 0.3 * (input.length / candidate.length);
+  }
+  // 入力が候補で始まる（候補が入力の省略）
+  if (input.startsWith(candidate)) {
+    return candidate.length / input.length;
+  }
+  // 共通前方一致文字数
+  let common = 0;
+  const min = Math.min(input.length, candidate.length);
+  for (let i = 0; i < min; i++) {
+    if (input[i] === candidate[i]) common++;
+    else break;
+  }
+  return common / Math.max(input.length, candidate.length);
+}
+
+/* ---- Word-level Levenshtein ---- */
+// 入力をスペースで単語分割し、各単語の最良マッチを平均する
+// 「DOWNLOAD JUNGLE」→「DORNWALD Junge」のような語順一致ケースに強い
+function wordLevelSimilarity(inputWithSp, candidateWithSp) {
+  const iWords = inputWithSp.split(/\s+/).filter(Boolean);
+  const cWords = candidateWithSp.split(/\s+/).filter(Boolean);
+  if (!iWords.length || !cWords.length) return 0;
+
+  let total = 0;
+  for (const iw of iWords) {
+    let best = 0;
+    for (const cw of cWords) {
+      const s = levenshteinSimilarity(iw, cw);
+      if (s > best) best = s;
+    }
+    total += best;
+  }
+  return total / iWords.length;
+}
+
+/* ============================================================
+   SimilarityEngine（柔軟な差し替えのための戦略パターン）
+
+   アルゴリズムを追加・削除・重み変更するには
+   SimilarityEngine.algorithms 配列を編集するだけでOK。
+   ・weight の合計が 1 でなくても自動正規化される
+   ・enabled: false にするとそのアルゴリズムを除外
+
+   各 fn が受け取る ctx:
+     ctx.noSp    … 入力（スペースなし正規化）
+     ctx.noSp_c  … 候補（スペースなし正規化）
+     ctx.withSp  … 入力（スペースあり正規化）
+     ctx.withSp_c… 候補（スペースあり正規化）
+   ============================================================ */
+const SimilarityEngine = {
+  algorithms: [
+    {
+      id:      'prefix',
+      name:    'Prefix Match（前方一致）',
+      weight:  0.25,
+      enabled: true,
+      fn: ctx => prefixSimilarity(ctx.noSp, ctx.noSp_c),
+    },
+    {
+      id:      'wordLevel',
+      name:    'Word-level Levenshtein（単語単位編集距離）',
+      weight:  0.35,
+      enabled: true,
+      fn: ctx => wordLevelSimilarity(ctx.withSp, ctx.withSp_c),
+    },
+    {
+      id:      'ngram',
+      name:    'Bigram Jaccard（N-gram）',
+      weight:  0.25,
+      enabled: true,
+      fn: ctx => ngramSimilarity(ctx.noSp, ctx.noSp_c),
+    },
+    {
+      id:      'phonetic',
+      name:    'Double Metaphone（音声類似）',
+      weight:  0.15,
+      enabled: true,
+      fn: ctx => phoneticSimilarity(ctx.noSp, ctx.noSp_c),
+    },
+  ],
+
+  /**
+   * スコア計算
+   * compute(noSp, noSp_c, withSp, withSp_c) → 0〜1
+   */
+  compute(noSp, noSp_c, withSp, withSp_c) {
+    const ctx = { noSp, noSp_c, withSp, withSp_c };
+    const active = this.algorithms.filter(a => a.enabled);
+    if (!active.length) return 0;
+    const totalWeight = active.reduce((s, a) => s + a.weight, 0);
+    if (!totalWeight) return 0;
+    return active.reduce((s, a) => s + a.fn(ctx) * a.weight, 0) / totalWeight;
+  },
+};
+
+/* ============================================================
+   楽曲マージ処理
+   同一タイトルの楽曲IDを1つにまとめ、in_ac/in_inf は OR でマージする
+   （例: ID=1833 が in_inf のみ、ID=1877 が in_ac のみ
+         → マージ後は in_ac: true, in_inf: true）
+   ============================================================ */
+let mergedSongs = null; // Array<{ title, normRaw, in_ac, in_inf }>
+
+function buildMergedSongs(title, normalized, chart, songInfo, versionNames) {
+  const groups = new Map(); // titleStr → merged song object
+
+  for (const id of Object.keys(title)) {
+    const titleStr = title[id];
+    if (!titleStr) continue;
+    const normRaw    = normalized[id] || titleStr;
+    const chartData  = chart[id]    || {};
+    const extraData  = songInfo[id] || {};
+    const in_ac      = chartData.in_ac  === true;
+    const in_inf     = chartData.in_inf === true;
+    const artist     = extraData.artist || '';
+    const versionIdx = typeof extraData.version === 'number' ? extraData.version : -1;
+    const versionName = versionIdx >= 0 && versionNames[versionIdx] ? versionNames[versionIdx] : '';
+
+    if (groups.has(titleStr)) {
+      const existing = groups.get(titleStr);
+      // in_ac / in_inf: どちらか一方でも true ならマージ後も true
+      existing.in_ac  = existing.in_ac  || in_ac;
+      existing.in_inf = existing.in_inf || in_inf;
+      // バージョン: より早い収録（数値が小さい方）を優先
+      if (versionIdx >= 0 && (existing.versionIdx < 0 || versionIdx < existing.versionIdx)) {
+        existing.versionIdx  = versionIdx;
+        existing.versionName = versionName;
+      }
+    } else {
+      groups.set(titleStr, {
+        title: titleStr,
+        normRaw,
+        in_ac,
+        in_inf,
+        artist,
+        versionIdx,
+        versionName,
+      });
+    }
+  }
+
+  return Array.from(groups.values());
+}
+
+/* ============================================================
+   検索メイン処理
+   ============================================================ */
+function search(query, filter) {
+  if (!mergedSongs) return [];
+  const inputNoSp   = normalizeNoSpaces(query);
+  const inputWithSp = normalizeWithSpaces(query);
+  if (!inputNoSp) return [];
+
+  // フィルタ適用
+  const pool = mergedSongs.filter(song => {
+    if (filter === 'ac')  return song.in_ac;
+    if (filter === 'inf') return song.in_inf;
+    return true; // 'all'
+  });
+
+  const scored = pool.map(song => {
+    const candNoSp   = normalizeNoSpaces(song.normRaw);
+    const candWithSp = normalizeWithSpaces(song.normRaw);
+    const score = SimilarityEngine.compute(inputNoSp, candNoSp, inputWithSp, candWithSp);
+    return { title: song.title, artist: song.artist, versionName: song.versionName, in_ac: song.in_ac, in_inf: song.in_inf, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, 10);
+}
+
+/* ============================================================
+   日本語が含まれるか判定（フォント切り替え用）
+   ============================================================ */
+function hasJapanese(str) {
+  return /[\u3040-\u30ff\u4e00-\u9fff]/.test(str);
+}
+
+/* ============================================================
+   DOM操作
+   ============================================================ */
+const searchInput    = document.getElementById('searchInput');
+const resultsArea    = document.getElementById('resultsArea');
+const loadingArea    = document.getElementById('loadingArea');
+const errorArea      = document.getElementById('errorArea');
+const debugToggle    = document.getElementById('debugToggle');
+const versionToggle  = document.getElementById('versionToggle');
+
+let showScore   = false;
+let showVersion = false;
+
+function showLoading(v) { loadingArea.hidden = !v; }
+function showError(msg) {
+  errorArea.hidden = false;
+  errorArea.textContent = msg;  // textContent で安全に表示
+}
+function hideError() { errorArea.hidden = true; }
+
+function clearResults() {
+  while (resultsArea.firstChild) resultsArea.removeChild(resultsArea.firstChild);
+}
+
+function createCopyBtn(titleText) {
+  const btn = document.createElement('button');
+  btn.className = 'copy-btn';
+  btn.textContent = 'コピー';
+  btn.setAttribute('aria-label', `${titleText} をコピー`);
+  btn.setAttribute('type', 'button');
+
+  const toast = document.createElement('span');
+  toast.className = 'copy-toast';
+  toast.textContent = 'コピーしました';
+  toast.setAttribute('aria-hidden', 'true');
+  btn.appendChild(toast);
+
+  let toastTimer = null;
+  btn.addEventListener('click', () => {
+    navigator.clipboard.writeText(titleText).catch(() => {
+      // clipboard API が使えない場合のフォールバック
+      const ta = document.createElement('textarea');
+      ta.value = titleText;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+  });
+  return btn;
+}
+
+function createScoreBadge(score) {
+  const badge = document.createElement('span');
+  badge.className = 'score-badge';
+  badge.textContent = (score * 100).toFixed(1) + '%';
+  if (!showScore) badge.hidden = true;
+  return badge;
+}
+
+/** アーティスト・バージョンのサブ情報要素を生成 */
+function createSongMeta(artist, versionName) {
+  const meta = document.createElement('div');
+  meta.className = 'song-meta';
+
+  if (artist) {
+    const artistEl = document.createElement('span');
+    artistEl.className = hasJapanese(artist) ? 'song-artist' : 'song-artist-latin';
+    artistEl.textContent = artist;
+    meta.appendChild(artistEl);
+  }
+
+  if (versionName) {
+    const verEl = document.createElement('span');
+    verEl.className = 'song-version';
+    verEl.textContent = versionName;
+    if (!showVersion) verEl.hidden = true;
+    meta.appendChild(verEl);
+  }
+
+  return meta;
+}
+
+function renderResults(results) {
+  clearResults();
+  if (results.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'results-empty';
+    p.textContent = '候補が見つかりませんでした';
+    resultsArea.appendChild(p);
+    return;
+  }
+
+  // --- Top1カード ---
+  const top = results[0];
+  const topCard = document.createElement('div');
+  topCard.className = 'top-card';
+
+  const badge = document.createElement('span');
+  badge.className = 'top-card-badge';
+  badge.textContent = '#1 BEST MATCH';
+  topCard.appendChild(badge);
+
+  // タイトル + サブ情報をまとめる左側ブロック
+  const topLeft = document.createElement('div');
+  topLeft.style.cssText = 'flex:1;min-width:0;padding-top:14px;';
+  const titleEl = document.createElement('div');
+  titleEl.className = hasJapanese(top.title) ? 'top-card-title-jp' : 'top-card-title';
+  titleEl.style.paddingTop = '0';
+  titleEl.textContent = top.title;
+  topLeft.appendChild(titleEl);
+  topLeft.appendChild(createSongMeta(top.artist, top.versionName));
+
+  const topRight = document.createElement('div');
+  topRight.className = 'top-card-right';
+  topRight.appendChild(createScoreBadge(top.score));
+  topRight.appendChild(createCopyBtn(top.title));
+
+  topCard.appendChild(topLeft);
+  topCard.appendChild(topRight);
+  resultsArea.appendChild(topCard);
+
+  // --- 2〜10位リスト ---
+  if (results.length > 1) {
+    const list = document.createElement('div');
+    list.className = 'candidate-list';
+
+    for (let i = 1; i < results.length; i++) {
+      const item = results[i];
+      const row = document.createElement('div');
+      row.className = 'candidate-item';
+
+      const rank = document.createElement('span');
+      rank.className = 'candidate-rank';
+      rank.textContent = `#${i + 1}`;
+
+      // タイトル + サブ情報ブロック
+      const nameBlock = document.createElement('div');
+      nameBlock.style.cssText = 'flex:1;min-width:0;';
+      const name = document.createElement('span');
+      name.className = hasJapanese(item.title) ? 'candidate-name' : 'candidate-name candidate-name-latin';
+      name.textContent = item.title;
+      nameBlock.appendChild(name);
+      nameBlock.appendChild(createSongMeta(item.artist, item.versionName));
+
+      row.appendChild(rank);
+      row.appendChild(nameBlock);
+      row.appendChild(createScoreBadge(item.score));
+      row.appendChild(createCopyBtn(item.title));
+      list.appendChild(row);
+    }
+    resultsArea.appendChild(list);
+  }
+}
+
+/* ============================================================
+   バージョン表示トグル
+   ============================================================ */
+versionToggle.addEventListener('click', () => {
+  showVersion = !showVersion;
+  versionToggle.textContent = `収録バージョン表示: ${showVersion ? 'ON' : 'OFF'}`;
+  versionToggle.setAttribute('aria-pressed', showVersion);
+  document.querySelectorAll('.song-version').forEach(el => { el.hidden = !showVersion; });
+});
+
+/* ============================================================
+   スコア表示トグル
+   ============================================================ */
+debugToggle.addEventListener('click', () => {
+  showScore = !showScore;
+  debugToggle.textContent = `スコア表示: ${showScore ? 'ON' : 'OFF'}`;
+  debugToggle.setAttribute('aria-pressed', showScore);
+  document.querySelectorAll('.score-badge').forEach(b => { b.hidden = !showScore; });
+});
+
+/* ============================================================
+   テーマ切り替え
+   ============================================================ */
+const themeButtons = document.querySelectorAll('.theme-btn');
+const THEME_STORAGE_KEY = 'iidx_theme';
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme === 'light' ? '' : theme);
+  themeButtons.forEach(btn => {
+    btn.setAttribute('aria-pressed', btn.dataset.themeTarget === theme);
+  });
+  try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch {}
+}
+
+themeButtons.forEach(btn => {
+  btn.addEventListener('click', () => applyTheme(btn.dataset.themeTarget));
+});
+
+// 保存済みテーマを復元
+(function () {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved && ['light', 'dark', 'sparkle', 'tricoro'].includes(saved)) applyTheme(saved);
+  } catch {}
+})();
+
+/* ============================================================
+   フィルター状態 & イベント
+   ============================================================ */
+let currentFilter = 'all'; // 'all' | 'ac' | 'inf'
+const filterButtons = document.querySelectorAll('.filter-btn');
+
+filterButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentFilter = btn.dataset.filter;
+    filterButtons.forEach(b => b.setAttribute('aria-pressed', b === btn));
+    triggerSearch();
+  });
+});
+
+function triggerSearch() {
+  const query = sanitizeInput(searchInput.value);
+  if (!query) { clearResults(); return; }
+  const results = search(query, currentFilter);
+  renderResults(results);
+}
+
+/* ============================================================
+   検索 debounce
+   ============================================================ */
+let debounceTimer;
+searchInput.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(triggerSearch, 200);
+});
+
+/* ============================================================
+   起動時データロード
+   ============================================================ */
+(async function init() {
+  showLoading(true);
+  hideError();
+  try {
+    const raw = await loadSongData();
+    mergedSongs = buildMergedSongs(raw.title, raw.normalized, raw.chart, raw.songInfo, raw.versionNames);
+  } catch (e) {
+    showError('楽曲データの取得に失敗しました。ページを再読み込みしてください。(' + e.message + ')');
+  } finally {
+    showLoading(false);
+  }
+})();
+</script>
+
+<!-- ============================================================
+  テストケース（ブラウザコンソールで動作確認用）
+  DevTools Console で runTests() を実行してください
+
+  対象テストケース:
+  【仕様書必須】
+    1. "Elephant Paoon"           → eRAseRmOToRpHAntOM   (上位5件)
+    2. "DOWNLOAD JUNGLE"          → DORNWALD ~Junge~     (上位5件)
+  【難読・難打曲】
+    3. "AETHER"                   → ÆTHER
+    4. "identity"                 → [ ]DENTITY
+    5. "reverse"                  → esrev:eR
+    6. "happyangel"               → HAPPY☆ANGEL
+    7. "smooooch"                 → smooooch・∀・
+    8. "ピアノ協奏曲第1番蠍火"     → ピアノ協奏曲第１番"蠍火"
+    9. "かわいいだけじゃだめですか" → かわいいだけじゃだめですか？
+   10. "POLKAMANIA"               → POLꓘAMAИIA
+   11. "forall"                   → ∀
+   12. "フェティッシュペーパー"    → フェティッシュペイパー～脇の汗回転ガール～
+  ============================================================ -->
+<script>
+window.runTests = function () {
+  const cases = [
+    { input: 'Elephant Paoon',            expect: 'eRAseRmOToRpHAntOM',                     top: 5,  label: '【仕様】Elephant Paoon' },
+    { input: 'DOWNLOAD JUNGLE',           expect: 'DORNWALD ~Junge~',                        top: 5,  label: '【仕様】DOWNLOAD JUNGLE' },
+    { input: 'AETHER',                    expect: 'ÆTHER',                                   top: 5,  label: 'ÆTHER（特殊文字Æ）' },
+    { input: 'identity',                  expect: '[ ]DENTITY',                              top: 5,  label: '[ ]DENTITY（括弧含む）' },
+    { input: 'reverse',                   expect: 'esrev:eR',                                top: 5,  label: 'esrev:eR（逆表記）' },
+    { input: 'happyangel',                expect: 'HAPPY☆ANGEL',                             top: 5,  label: 'HAPPY☆ANGEL（☆含む）' },
+    { input: 'smooooch',                  expect: 'smooooch・∀・',                           top: 5,  label: 'smooooch・∀・（記号・∀）' },
+    { input: 'ピアノ協奏曲第1番蠍火',    expect: 'ピアノ協奏曲第１番"蠍火"',                top: 5,  label: 'ピアノ協奏曲（全角数字・引用符）' },
+    { input: 'かわいいだけじゃだめですか', expect: 'かわいいだけじゃだめですか？',            top: 5,  label: 'かわいいだけじゃ…（全角？）' },
+    { input: 'POLKAMANIA',                expect: 'POLꓘAMAИIA',                              top: 5,  label: 'POLꓘAMAИIA（機種依存文字）' },
+    { input: 'forall',                    expect: '∀',                                        top: 5,  label: '∀（数学記号のみ）' },
+    { input: 'フェティッシュペーパー',    expect: 'フェティッシュペイパー～脇の汗回転ガール～', top: 5, label: 'フェティッシュペイパー（長い日本語）' },
+  ];
+
+  if (!songData) { console.error('データ未ロード。ページ読み込み後に再実行してください。'); return; }
+
+  let pass = 0, fail = 0;
+  console.group('IIDX SongFinder テスト結果');
+  for (const tc of cases) {
+    const results = search(tc.input);
+    const topN = results.slice(0, tc.top).map(r => r.title);
+    const ok = topN.includes(tc.expect);
+    if (ok) {
+      pass++;
+      console.log(`✅ PASS [${tc.label}]  →  "${tc.expect}" が上位${tc.top}件以内 (rank: ${topN.indexOf(tc.expect) + 1})`);
+    } else {
+      fail++;
+      console.warn(`❌ FAIL [${tc.label}]`);
+      console.warn(`   期待: "${tc.expect}" が上位${tc.top}件以内`);
+      console.warn(`   実際の上位5件:`, results.slice(0, 5).map(r => `"${r.title}" (${(r.score * 100).toFixed(1)}%)`));
+    }
+  }
+  console.log(`\n結果: ${pass} PASS / ${fail} FAIL / ${cases.length} TOTAL`);
+  console.groupEnd();
+};
+console.info('💡 IIDX SongFinder: runTests() でテストを実行できます');
+</script>
+
+</body>
+</html>
