@@ -4,3 +4,6 @@
 # Claude Code
 .claude/settings.local.json
 .cloude/settings.json
+
+# docs内のmdファイルはClaude Code用なのでGitHub非公開
+docs/*.md
