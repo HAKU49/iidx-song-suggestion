@@ -7,3 +7,6 @@
 
 # docs内のmdファイルはClaude Code用なのでGitHub非公開
 docs/*.md
+
+# テストファイル
+tests/
