@@ -15,11 +15,13 @@
 
 <header>
   <span class="header-title">IIDX SONG FINDER</span>
-  <div class="theme-switcher" role="group" aria-label="テーマ切り替え">
-    <button class="theme-btn" data-theme-target="light"   aria-pressed="true">LIGHT</button>
-    <button class="theme-btn" data-theme-target="dark"    aria-pressed="false">DARK</button>
-    <button class="theme-btn" data-theme-target="sparkle" aria-pressed="false">SPARKLE</button>
-    <button class="theme-btn" data-theme-target="tricoro" aria-pressed="false">TRICORO</button>
+  <div class="header-right">
+    <div class="theme-switcher" role="group" aria-label="テーマ切り替え">
+      <button class="theme-btn" data-theme-target="light"   aria-pressed="true">LIGHT</button>
+      <button class="theme-btn" data-theme-target="dark"    aria-pressed="false">DARK</button>
+      <button class="theme-btn" data-theme-target="sparkle" aria-pressed="false">SPARKLE</button>
+    </div>
+    <a href="about.html" class="about-btn" aria-label="このアプリについて">?</a>
   </div>
 </header>
 
@@ -40,14 +42,14 @@
 
   <div class="filter-bar" role="group" aria-label="表示する楽曲のフィルター">
     <span class="filter-label">FILTER:</span>
-    <button class="filter-btn" data-filter="all" aria-pressed="true"  type="button">全曲</button>
-    <button class="filter-btn" data-filter="ac"  aria-pressed="false" type="button">AC版</button>
+    <button class="filter-btn" data-filter="ac"  aria-pressed="false" type="button">AC</button>
     <button class="filter-btn" data-filter="inf" aria-pressed="false" type="button">INFINITAS</button>
+    <button class="filter-btn" data-filter="all" aria-pressed="true"  type="button">全曲</button>
   </div>
 
   <div class="debug-toggle-wrap">
     <button class="debug-toggle" id="versionToggle" aria-pressed="false">収録バージョン表示: OFF</button>
-    <button class="debug-toggle" id="debugToggle"   aria-pressed="false">スコア表示: OFF</button>
+    <button class="debug-toggle" id="debugToggle"   aria-pressed="false" hidden>スコア表示: OFF</button>
   </div>
 
   <div id="loadingArea" class="loading" hidden>

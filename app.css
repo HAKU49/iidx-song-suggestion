@@ -108,6 +108,36 @@ header {
   white-space: nowrap;
 }
 
+/* ========== ヘッダー右側グループ ========== */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.about-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--theme-btn-bg);
+  color: var(--theme-btn-text);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.about-btn:hover {
+  background: var(--accent);
+  color: var(--btn-text);
+  border-color: var(--accent);
+}
+
 /* ========== テーマ切り替え ========== */
 .theme-switcher {
   display: flex;
