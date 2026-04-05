@@ -6,18 +6,20 @@
 const DATA_SOURCE = {
   mode: 'remote',  // 'remote' | 'local'
   remote: {
-    titleUrl:      'https://chinimuruhi.github.io/IIDX-Data-Table/textage/title.json',
-    normalizedUrl: 'https://chinimuruhi.github.io/IIDX-Data-Table/textage/normalized-title.json',
-    chartInfoUrl:  'https://chinimuruhi.github.io/IIDX-Data-Table/textage/chart-info.json',
-    songInfoUrl:   'https://chinimuruhi.github.io/IIDX-Data-Table/textage/song-info.json',
-    versionUrl:    'https://chinimuruhi.github.io/IIDX-Data-Table/textage/version.json',
+    titleUrl:       'https://chinimuruhi.github.io/IIDX-Data-Table/textage/title.json',
+    normalizedUrl:  'https://chinimuruhi.github.io/IIDX-Data-Table/textage/normalized-title.json',
+    chartInfoUrl:   'https://chinimuruhi.github.io/IIDX-Data-Table/textage/chart-info.json',
+    songInfoUrl:    'https://chinimuruhi.github.io/IIDX-Data-Table/textage/song-info.json',
+    versionUrl:     'https://chinimuruhi.github.io/IIDX-Data-Table/textage/version.json',
+    textageTagUrl:  'https://chinimuruhi.github.io/IIDX-Data-Table/textage/textage-tag.json',
   },
   local: {
-    titleUrl:      './data/title.json',
-    normalizedUrl: './data/normalized-title.json',
-    chartInfoUrl:  './data/chart-info.json',
-    songInfoUrl:   './data/song-info.json',
-    versionUrl:    './data/version.json',
+    titleUrl:       './data/title.json',
+    normalizedUrl:  './data/normalized-title.json',
+    chartInfoUrl:   './data/chart-info.json',
+    songInfoUrl:    './data/song-info.json',
+    versionUrl:     './data/version.json',
+    textageTagUrl:  './data/textage-tag.json',
   },
 };
 
@@ -28,9 +30,10 @@ function getDataUrls() { return DATA_SOURCE[DATA_SOURCE.mode]; }
    ============================================================ */
 const CACHE_KEY_TITLE      = 'iidx_titles_v1';
 const CACHE_KEY_NORMALIZED = 'iidx_normalized_v1';
-const CACHE_KEY_CHART      = 'iidx_chart_v1';
+const CACHE_KEY_CHART      = 'iidx_chart_v3';  // v3: sp/dp notes added
 const CACHE_KEY_SONG_INFO  = 'iidx_songinfo_v1';
 const CACHE_KEY_VERSION    = 'iidx_version_v1';
+const CACHE_KEY_TEXTAGE_TAG = 'iidx_textage_tag_v1';
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 
 /* ============================================================
@@ -82,10 +85,37 @@ function sanitizeChartInfo(raw) {
   const result = {};
   for (const [k, v] of Object.entries(raw)) {
     if (typeof k === 'string' && typeof v === 'object' && v !== null) {
+      const level = (v.level && typeof v.level === 'object') ? v.level : {};
+      const notes = (v.notes && typeof v.notes === 'object') ? v.notes : {};
+      const sanitizeLevel = arr =>
+        Array.isArray(arr)
+          ? arr.slice(0, 5).map(n => (typeof n === 'number' ? Math.max(0, Math.min(12, n)) : 0))
+          : [0, 0, 0, 0, 0];
+      const sanitizeNotes = arr =>
+        Array.isArray(arr)
+          ? arr.slice(0, 5).map(n => (typeof n === 'number' ? Math.max(0, n) : 0))
+          : [0, 0, 0, 0, 0];
       result[k] = {
-        in_ac:  v.in_ac  === true,
-        in_inf: v.in_inf === true,
+        in_ac:    v.in_ac  === true,
+        in_inf:   v.in_inf === true,
+        sp:       sanitizeLevel(level.sp),
+        dp:       sanitizeLevel(level.dp),
+        spNotes:  sanitizeNotes(notes.sp),
+        dpNotes:  sanitizeNotes(notes.dp),
       };
+    }
+  }
+  return result;
+}
+
+function sanitizeTextageTag(raw) {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('Invalid textage-tag format');
+  }
+  const result = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k === 'string' && typeof v === 'string') {
+      result[k] = v.slice(0, 100);
     }
   }
   return result;
@@ -129,12 +159,13 @@ async function loadSongData() {
   // localモードはキャッシュしない
   if (DATA_SOURCE.mode === 'local') {
     const urls = getDataUrls();
-    const [titleRaw, normRaw, chartRaw, songInfoRaw, versionRaw] = await Promise.all([
+    const [titleRaw, normRaw, chartRaw, songInfoRaw, versionRaw, textageTagRaw] = await Promise.all([
       fetchJson(urls.titleUrl),
       fetchJson(urls.normalizedUrl),
       fetchJson(urls.chartInfoUrl),
       fetchJson(urls.songInfoUrl),
       fetchJson(urls.versionUrl),
+      fetchJson(urls.textageTagUrl),
     ]);
     return {
       title:        sanitizeTitles(titleRaw),
@@ -142,44 +173,50 @@ async function loadSongData() {
       chart:        sanitizeChartInfo(chartRaw),
       songInfo:     sanitizeSongInfo(songInfoRaw),
       versionNames: sanitizeVersionNames(versionRaw),
+      textageTag:   sanitizeTextageTag(textageTagRaw),
     };
   }
 
   // remoteモード：24時間キャッシュ（全ファイルキャッシュ済みなら fetch しない）
-  const cachedTitle    = loadCache(CACHE_KEY_TITLE);
-  const cachedNorm     = loadCache(CACHE_KEY_NORMALIZED);
-  const cachedChart    = loadCache(CACHE_KEY_CHART);
-  const cachedSongInfo = loadCache(CACHE_KEY_SONG_INFO);
-  const cachedVersion  = loadCache(CACHE_KEY_VERSION);
-  if (cachedTitle && cachedNorm && cachedChart && cachedSongInfo && cachedVersion) {
+  const cachedTitle      = loadCache(CACHE_KEY_TITLE);
+  const cachedNorm       = loadCache(CACHE_KEY_NORMALIZED);
+  const cachedChart      = loadCache(CACHE_KEY_CHART);
+  const cachedSongInfo   = loadCache(CACHE_KEY_SONG_INFO);
+  const cachedVersion    = loadCache(CACHE_KEY_VERSION);
+  const cachedTextageTag = loadCache(CACHE_KEY_TEXTAGE_TAG);
+  if (cachedTitle && cachedNorm && cachedChart && cachedSongInfo && cachedVersion && cachedTextageTag) {
     return {
       title:        cachedTitle,
       normalized:   cachedNorm,
       chart:        cachedChart,
       songInfo:     cachedSongInfo,
       versionNames: cachedVersion,
+      textageTag:   cachedTextageTag,
     };
   }
 
   const urls = getDataUrls();
-  const [titleRaw, normRaw, chartRaw, songInfoRaw, versionRaw] = await Promise.all([
+  const [titleRaw, normRaw, chartRaw, songInfoRaw, versionRaw, textageTagRaw] = await Promise.all([
     fetchJson(urls.titleUrl),
     fetchJson(urls.normalizedUrl),
     fetchJson(urls.chartInfoUrl),
     fetchJson(urls.songInfoUrl),
     fetchJson(urls.versionUrl),
+    fetchJson(urls.textageTagUrl),
   ]);
   const title        = sanitizeTitles(titleRaw);
   const normalized   = sanitizeTitles(normRaw);
   const chart        = sanitizeChartInfo(chartRaw);
   const songInfo     = sanitizeSongInfo(songInfoRaw);
   const versionNames = sanitizeVersionNames(versionRaw);
-  saveCache(CACHE_KEY_TITLE,      title);
-  saveCache(CACHE_KEY_NORMALIZED, normalized);
-  saveCache(CACHE_KEY_CHART,      chart);
-  saveCache(CACHE_KEY_SONG_INFO,  songInfo);
-  saveCache(CACHE_KEY_VERSION,    versionNames);
-  return { title, normalized, chart, songInfo, versionNames };
+  const textageTag   = sanitizeTextageTag(textageTagRaw);
+  saveCache(CACHE_KEY_TITLE,       title);
+  saveCache(CACHE_KEY_NORMALIZED,  normalized);
+  saveCache(CACHE_KEY_CHART,       chart);
+  saveCache(CACHE_KEY_SONG_INFO,   songInfo);
+  saveCache(CACHE_KEY_VERSION,     versionNames);
+  saveCache(CACHE_KEY_TEXTAGE_TAG, textageTag);
+  return { title, normalized, chart, songInfo, versionNames, textageTag };
 }
 
 /* ============================================================
@@ -473,6 +510,42 @@ const SimilarityEngine = {
 };
 
 /* ============================================================
+   TexTage URL生成用定数・ヘルパー
+   ============================================================ */
+
+/**
+ * version.json の配列インデックス → TexTage URL の {version} コードへの変換
+ * index 0 = "1st style" → "1"
+ * index 1 = "substream" → "s"
+ * index N (N>=2) → String(N)  例: 21 → "21" (SPADA)
+ */
+function getVersionUrlCode(versionIdx) {
+  if (versionIdx < 0) return '0';
+  if (versionIdx === 0) return '1';
+  if (versionIdx === 1) return 's';
+  return String(versionIdx);
+}
+
+/**
+ * 譜面レベル数値 → TexTage suffix 先頭文字
+ * 1-9 → "1"-"9", 10 → "A", 11 → "B", 12 → "C", 0/その他 → "0"
+ */
+function levelToChar(level) {
+  if (level <= 0 || level > 12) return '0';
+  if (level <= 9) return String(level);
+  return String.fromCharCode(55 + level); // 10→"A", 11→"B", 12→"C"
+}
+
+/** 難易度定義: [頭文字, 名称, difficulty_code, 色キー] */
+const DIFFICULTIES = [
+  { label: 'B', name: 'BEGINNER',    code: 'P', colorKey: 'beginner'    },
+  { label: 'N', name: 'NORMAL',      code: 'N', colorKey: 'normal'      },
+  { label: 'H', name: 'HYPER',       code: 'H', colorKey: 'hyper'       },
+  { label: 'A', name: 'ANOTHER',     code: 'A', colorKey: 'another'     },
+  { label: 'L', name: 'LEGGENDARIA', code: 'X', colorKey: 'leggendaria' },
+];
+
+/* ============================================================
    楽曲マージ処理
    同一タイトルの楽曲IDを1つにまとめ、in_ac/in_inf は OR でマージする
    （例: ID=1833 が in_inf のみ、ID=1877 が in_ac のみ
@@ -481,33 +554,71 @@ const SimilarityEngine = {
 let mergedSongs = null;  // Array<{ title, normRaw, in_ac, in_inf }>
 let aliasByTitle = null; // Map<titleStr, string[]> 正規化済みエイリアス
 
-function buildMergedSongs(title, normalized, chart, songInfo, versionNames) {
+/**
+ * チャートサブオブジェクトを生成する
+ */
+function buildChartObj(textageTag, versionCode, sp, dp, spNotes, dpNotes) {
+  return { textageTag, versionCode, sp, dp, spNotes, dpNotes };
+}
+
+function buildMergedSongs(title, normalized, chart, songInfo, versionNames, textageTagData) {
   const groups = new Map(); // titleStr → merged song object
 
   for (const id of Object.keys(title)) {
     const titleStr = title[id];
     if (!titleStr) continue;
-    const normRaw    = normalized[id] || titleStr;
-    const chartData  = chart[id]    || {};
-    const extraData  = songInfo[id] || {};
-    const in_ac      = chartData.in_ac  === true;
-    const in_inf     = chartData.in_inf === true;
-    const artist     = extraData.artist || '';
-    const versionIdx = typeof extraData.version === 'number' ? extraData.version : -1;
+    const normRaw     = normalized[id] || titleStr;
+    const chartData   = chart[id]      || {};
+    const extraData   = songInfo[id]   || {};
+    const in_ac       = chartData.in_ac  === true;
+    const in_inf      = chartData.in_inf === true;
+    const artist      = extraData.artist || '';
+    const versionIdx  = typeof extraData.version === 'number' ? extraData.version : -1;
     const versionName = versionIdx >= 0 && versionNames[versionIdx] ? versionNames[versionIdx] : '';
+    const versionCode = getVersionUrlCode(versionIdx);
+    const textageTag  = (textageTagData && textageTagData[id]) || '';
+    const sp          = chartData.sp      || [0, 0, 0, 0, 0];
+    const dp          = chartData.dp      || [0, 0, 0, 0, 0];
+    const spNotes     = chartData.spNotes || [0, 0, 0, 0, 0];
+    const dpNotes     = chartData.dpNotes || [0, 0, 0, 0, 0];
+
+    // ID の種別を判定
+    const isPureAC  = in_ac && !in_inf;   // AC専用
+    const isPureINF = !in_ac && in_inf;   // INFINITAS専用
+    const isShared  = in_ac && in_inf;    // 共通
+
+    const chartObj = buildChartObj(textageTag, versionCode, sp, dp, spNotes, dpNotes);
 
     if (groups.has(titleStr)) {
       const existing = groups.get(titleStr);
       // in_ac / in_inf: どちらか一方でも true ならマージ後も true
       existing.in_ac  = existing.in_ac  || in_ac;
       existing.in_inf = existing.in_inf || in_inf;
-      // バージョン: より早い収録（数値が小さい方）を優先
+      // バージョン: より早い収録（数値が小さい方）を優先（表示用）
       if (versionIdx >= 0 && (existing.versionIdx < 0 || versionIdx < existing.versionIdx)) {
         existing.versionIdx  = versionIdx;
         existing.versionName = versionName;
       }
+      // acChart: Pure AC を優先。Pure が既にあれば上書きしない。Shared はスロット空きのみ
+      if (isPureAC) {
+        if (!existing.acChartFromPure) {
+          existing.acChart = chartObj;
+          existing.acChartFromPure = true;
+        }
+      } else if (isShared && !existing.acChart) {
+        existing.acChart = chartObj;
+      }
+      // infChart: Pure INF を優先。Pure が既にあれば上書きしない。Shared はスロット空きのみ
+      if (isPureINF) {
+        if (!existing.infChartFromPure) {
+          existing.infChart = chartObj;
+          existing.infChartFromPure = true;
+        }
+      } else if (isShared && !existing.infChart) {
+        existing.infChart = chartObj;
+      }
     } else {
-      groups.set(titleStr, {
+      const entry = {
         title: titleStr,
         normRaw,
         in_ac,
@@ -515,11 +626,27 @@ function buildMergedSongs(title, normalized, chart, songInfo, versionNames) {
         artist,
         versionIdx,
         versionName,
-      });
+        acChart:         null,
+        acChartFromPure: false,
+        infChart:        null,
+        infChartFromPure: false,
+      };
+      if (isPureAC) {
+        entry.acChart = chartObj;
+        entry.acChartFromPure = true;
+      } else if (isPureINF) {
+        entry.infChart = chartObj;
+        entry.infChartFromPure = true;
+      } else if (isShared) {
+        entry.acChart  = chartObj;
+        entry.infChart = chartObj;
+      }
+      groups.set(titleStr, entry);
     }
   }
 
-  return Array.from(groups.values());
+  // 内部フラグを除いて返す
+  return Array.from(groups.values()).map(({ acChartFromPure, infChartFromPure, ...rest }) => rest);
 }
 
 /* ============================================================
@@ -967,7 +1094,21 @@ function search(query, filter) {
     const simScore   = SimilarityEngine.compute(inputNoSp, candNoSp, inputWithSp, candWithSp);
     const aliasScore = computeAliasScore(inputNoSp, song.title);
     const score      = Math.max(simScore, aliasScore);
-    return { title: song.title, artist: song.artist, versionName: song.versionName, in_ac: song.in_ac, in_inf: song.in_inf, score };
+    // フィルターに応じて AC版 / INF版 のチャートデータを選択
+    // 'inf' → INF優先、フォールバックAC
+    // 'ac'/'all' → AC優先、フォールバックINF（INFINITAS限定曲は acChart=null なので自動的に INF を使用）
+    const chart = filter === 'inf'
+      ? (song.infChart ?? song.acChart ?? null)
+      : (song.acChart  ?? song.infChart ?? null);
+    return {
+      title: song.title, artist: song.artist, versionName: song.versionName, in_ac: song.in_ac, in_inf: song.in_inf, score,
+      textageTag:  chart?.textageTag  ?? '',
+      versionCode: chart?.versionCode ?? '',
+      sp:          chart?.sp          ?? [0, 0, 0, 0, 0],
+      dp:          chart?.dp          ?? [0, 0, 0, 0, 0],
+      spNotes:     chart?.spNotes     ?? [0, 0, 0, 0, 0],
+      dpNotes:     chart?.dpNotes     ?? [0, 0, 0, 0, 0],
+    };
   });
 
   scored.sort((a, b) => b.score - a.score);
@@ -1003,6 +1144,71 @@ function hideError() { errorArea.hidden = true; }
 
 function clearResults() {
   while (resultsArea.firstChild) resultsArea.removeChild(resultsArea.firstChild);
+}
+
+/**
+ * 1行分の難易度ボタン群を生成する（SP or DP）
+ * @param {string} rowLabel  - "SP" | "DP"
+ * @param {string} playStyle - TexTage play_style コード ("1" | "D")
+ * @param {string} textageTag
+ * @param {string} versionCode
+ * @param {number[]} levels   - [B, N, H, A, L] の各レベル値
+ * @param {number[]} notesArr - [B, N, H, A, L] の各ノーツ数
+ * @param {boolean} canLink   - in_ac || in_inf
+ */
+function createDiffRow(rowLabel, playStyle, textageTag, versionCode, levels, notesArr, canLink) {
+  const row = document.createElement('div');
+  row.className = 'chart-links-row';
+
+  const label = document.createElement('span');
+  label.className = 'chart-links-label';
+  label.textContent = rowLabel;
+  row.appendChild(label);
+
+  DIFFICULTIES.forEach((diff, i) => {
+    const level = (levels   && levels[i])   || 0;
+    const notes = (notesArr && notesArr[i]) || 0;
+    // level=0 → 未実装、notes=0 → TexTageに譜面ページ未作成
+    const isDisabled = !canLink || level === 0 || notes === 0 || !textageTag || !versionCode;
+
+    if (isDisabled) {
+      const btn = document.createElement('span');
+      btn.className = `chart-diff-btn chart-diff-btn--${diff.colorKey} chart-diff-btn--disabled`;
+      btn.setAttribute('aria-disabled', 'true');
+      btn.textContent = level > 0 ? `${diff.label}:${level}` : `${diff.label}:-`;
+      row.appendChild(btn);
+    } else {
+      const levelChar = levelToChar(level);
+      const query = `${playStyle}${diff.code}${levelChar}00`;
+      const href = `https://textage.cc/score/${versionCode}/${textageTag}.html?${query}`;
+      const btn = document.createElement('a');
+      btn.className = `chart-diff-btn chart-diff-btn--${diff.colorKey}`;
+      btn.href = href;
+      btn.target = '_blank';
+      btn.rel = 'noopener noreferrer';
+      btn.textContent = `${diff.label}:${level}`;
+      btn.setAttribute('aria-label', `${diff.name} Lv.${level} の譜面を TexTage で開く`);
+      row.appendChild(btn);
+    }
+  });
+
+  return row;
+}
+
+/**
+ * 楽曲カード内に追加する譜面リンクブロックを生成する
+ * @param {{ textageTag:string, versionCode:string, sp:number[], dp:number[], in_ac:boolean, in_inf:boolean }} song
+ */
+function createChartLinks(song) {
+  const container = document.createElement('div');
+  container.className = 'chart-links';
+
+  const canLink = song.in_ac || song.in_inf;
+
+  container.appendChild(createDiffRow('SP', '1', song.textageTag, song.versionCode, song.sp, song.spNotes, canLink));
+  container.appendChild(createDiffRow('DP', 'D', song.textageTag, song.versionCode, song.dp, song.dpNotes, canLink));
+
+  return container;
 }
 
 function createCopyBtn(titleText) {
@@ -1098,6 +1304,7 @@ function renderResults(results) {
   titleEl.textContent = top.title;
   topLeft.appendChild(titleEl);
   topLeft.appendChild(createSongMeta(top.artist, top.versionName));
+  topLeft.appendChild(createChartLinks(top));
 
   const topRight = document.createElement('div');
   topRight.className = 'top-card-right';
@@ -1130,6 +1337,7 @@ function renderResults(results) {
       name.textContent = item.title;
       nameBlock.appendChild(name);
       nameBlock.appendChild(createSongMeta(item.artist, item.versionName));
+      nameBlock.appendChild(createChartLinks(item));
 
       row.appendChild(rank);
       row.appendChild(nameBlock);
@@ -1225,7 +1433,7 @@ searchInput.addEventListener('input', () => {
   hideError();
   try {
     const raw = await loadSongData();
-    mergedSongs = buildMergedSongs(raw.title, raw.normalized, raw.chart, raw.songInfo, raw.versionNames);
+    mergedSongs = buildMergedSongs(raw.title, raw.normalized, raw.chart, raw.songInfo, raw.versionNames, raw.textageTag);
     // エイリアスデータをインライン定数から構築（fetchなし）
     aliasByTitle = buildAliasByTitle(ALIASES_DATA);
   } catch (e) {
