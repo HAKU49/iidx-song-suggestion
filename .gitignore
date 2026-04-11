@@ -10,3 +10,9 @@ docs/*.md
 
 # テストファイル
 tests/
+
+# スクリプト出力（CSV等、GitHub非公開）
+output/
+
+# TexTageスナップショット（素材ファイル、本番不使用）
+local/

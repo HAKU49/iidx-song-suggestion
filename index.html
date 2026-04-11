@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://chinimuruhi.github.io; img-src 'self' data:;">
+    content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://chinimuruhi.github.io https://docs.google.com; img-src 'self' data:;">
   <title>IIDX 曲名サジェスト</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -48,8 +48,9 @@
   </div>
 
   <div class="debug-toggle-wrap">
-    <button class="debug-toggle" id="versionToggle" aria-pressed="false">収録バージョン表示: OFF</button>
-    <button class="debug-toggle" id="debugToggle"   aria-pressed="false" hidden>スコア表示: OFF</button>
+    <button class="debug-toggle" id="versionToggle"     aria-pressed="false">収録バージョン表示: OFF</button>
+    <button class="debug-toggle" id="leggendariaToggle" aria-pressed="false">LEGGENDARIA全リンク: OFF</button>
+    <button class="debug-toggle" id="debugToggle"       aria-pressed="false" hidden>スコア表示: OFF</button>
   </div>
 
   <div id="loadingArea" class="loading" hidden>
@@ -62,6 +63,7 @@
   <section class="results-area" id="resultsArea" aria-live="polite" aria-label="検索結果"></section>
 </main>
 
+<script src="data/chart-availability.js"></script>
 <script src="app.js" defer></script>
 
 </body>

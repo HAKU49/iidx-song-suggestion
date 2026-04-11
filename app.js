@@ -121,6 +121,51 @@ function sanitizeTextageTag(raw) {
   return result;
 }
 
+function sanitizeChartAvailability(raw) {
+  const result = {};
+  for (const key of ['beginner_ac', 'beginner_inf', 'leggendaria_ac', 'leggendaria_inf']) {
+    result[key] = new Set(
+      Array.isArray(raw[key]) ? raw[key].filter(s => typeof s === 'string') : []
+    );
+  }
+  return result;
+}
+
+/* ============================================================
+   Google スプレッドシートから可用性データをリアルタイム取得
+   ============================================================ */
+const AVAILABILITY_SPREADSHEET_ID = '1IiWAaxnh6fUfn-EaIU6-e8-GCYF6NfX-KnQF57c40_Q';
+const AVAILABILITY_SHEET_NAMES = ['beginner_ac', 'beginner_inf', 'leggendaria_ac', 'leggendaria_inf'];
+
+function parseAvailabilityCsv(csvText) {
+  const lines = csvText.split(/\r?\n/).slice(1); // ヘッダー行スキップ
+  const ids = new Set();
+  for (const line of lines) {
+    const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    const textageId = cols[1]; // B列: textage_id
+    if (textageId && /^[a-z0-9_]+$/.test(textageId)) {
+      ids.add(textageId);
+    }
+  }
+  return ids;
+}
+
+async function fetchChartAvailabilityFromSheets() {
+  const ts = Date.now(); // キャッシュバスター（Googleサーバー・ブラウザ両方のキャッシュを回避）
+  const base = `https://docs.google.com/spreadsheets/d/${AVAILABILITY_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&_t=${ts}&sheet=`;
+  const entries = await Promise.all(
+    AVAILABILITY_SHEET_NAMES.map(async name => {
+      const res = await fetch(base + name, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for sheet: ${name}`);
+      const csv = await res.text();
+      return [name, parseAvailabilityCsv(csv)];
+    })
+  );
+  const result = {};
+  for (const [name, ids] of entries) result[name] = ids;
+  return result;
+}
+
 /* ============================================================
    LocalStorageキャッシュ
    ============================================================ */
@@ -551,8 +596,9 @@ const DIFFICULTIES = [
    （例: ID=1833 が in_inf のみ、ID=1877 が in_ac のみ
          → マージ後は in_ac: true, in_inf: true）
    ============================================================ */
-let mergedSongs = null;  // Array<{ title, normRaw, in_ac, in_inf }>
-let aliasByTitle = null; // Map<titleStr, string[]> 正規化済みエイリアス
+let mergedSongs = null;       // Array<{ title, normRaw, in_ac, in_inf }>
+let aliasByTitle = null;      // Map<titleStr, string[]> 正規化済みエイリアス
+let chartAvailability = null; // { beginner_ac: Set<string>, beginner_inf: Set<string>, leggendaria_ac: Set<string>, leggendaria_inf: Set<string> }
 
 /**
  * チャートサブオブジェクトを生成する
@@ -1100,8 +1146,12 @@ function search(query, filter) {
     const chart = filter === 'inf'
       ? (song.infChart ?? song.acChart ?? null)
       : (song.acChart  ?? song.infChart ?? null);
+    // chartVariant: 実際に使用しているチャートのバリアント（可用性セット検索に使用）
+    // INF限定曲（acChart=null）を「全曲」フィルターで表示する場合も 'inf' とする
+    const chartVariant = (filter === 'inf' || song.acChart === null) ? 'inf' : 'ac';
     return {
       title: song.title, artist: song.artist, versionName: song.versionName, in_ac: song.in_ac, in_inf: song.in_inf, score,
+      chartVariant, filterMode: filter,
       textageTag:  chart?.textageTag  ?? '',
       versionCode: chart?.versionCode ?? '',
       sp:          chart?.sp          ?? [0, 0, 0, 0, 0],
@@ -1129,11 +1179,13 @@ const searchInput    = document.getElementById('searchInput');
 const resultsArea    = document.getElementById('resultsArea');
 const loadingArea    = document.getElementById('loadingArea');
 const errorArea      = document.getElementById('errorArea');
-const debugToggle    = document.getElementById('debugToggle');
-const versionToggle  = document.getElementById('versionToggle');
+const debugToggle       = document.getElementById('debugToggle');
+const versionToggle     = document.getElementById('versionToggle');
+const leggendariaToggle = document.getElementById('leggendariaToggle');
 
-let showScore   = false;
-let showVersion = false;
+let showScore        = false;
+let showVersion      = false;
+let leggendariaAllLink = false;
 
 function showLoading(v) { loadingArea.hidden = !v; }
 function showError(msg) {
@@ -1155,8 +1207,10 @@ function clearResults() {
  * @param {number[]} levels   - [B, N, H, A, L] の各レベル値
  * @param {number[]} notesArr - [B, N, H, A, L] の各ノーツ数
  * @param {boolean} canLink   - in_ac || in_inf
+ * @param {string}  chartVariant - 'ac' | 'inf'（可用性セット検索に使用）
+ * @param {string}  filterMode   - 'ac' | 'inf' | 'all'（全曲フィルター時はOR判定）
  */
-function createDiffRow(rowLabel, playStyle, textageTag, versionCode, levels, notesArr, canLink) {
+function createDiffRow(rowLabel, playStyle, textageTag, versionCode, levels, notesArr, canLink, chartVariant, filterMode) {
   const row = document.createElement('div');
   row.className = 'chart-links-row';
 
@@ -1168,14 +1222,42 @@ function createDiffRow(rowLabel, playStyle, textageTag, versionCode, levels, not
   DIFFICULTIES.forEach((diff, i) => {
     const level = (levels   && levels[i])   || 0;
     const notes = (notesArr && notesArr[i]) || 0;
+    // BEGINNER(i=0) / LEGGENDARIA(i=4) は可用性セットで追加チェック
+    // AC/INF どちらかにあればリンク可（フィルター問わず）
+    let availabilityDisabled = false;
+    if (chartAvailability && textageTag) {
+      if (i === 0) {
+        if (filterMode === 'ac') {
+          availabilityDisabled = !chartAvailability['beginner_ac'].has(textageTag);
+        } else if (filterMode === 'inf') {
+          availabilityDisabled = !chartAvailability['beginner_inf'].has(textageTag);
+        } else { // 全曲: AC/INFどちらかにあればOK
+          availabilityDisabled = !chartAvailability['beginner_ac'].has(textageTag)
+                              && !chartAvailability['beginner_inf'].has(textageTag);
+        }
+      } else if (i === 4 && !leggendariaAllLink) {
+        if (filterMode === 'ac') {
+          availabilityDisabled = !chartAvailability['leggendaria_ac'].has(textageTag);
+        } else if (filterMode === 'inf') {
+          availabilityDisabled = !chartAvailability['leggendaria_inf'].has(textageTag);
+        } else { // 全曲: AC/INFどちらかにあればOK
+          availabilityDisabled = !chartAvailability['leggendaria_ac'].has(textageTag)
+                              && !chartAvailability['leggendaria_inf'].has(textageTag);
+        }
+      }
+    }
     // level=0 → 未実装、notes=0 → TexTageに譜面ページ未作成
-    const isDisabled = !canLink || level === 0 || notes === 0 || !textageTag || !versionCode;
+    const isDisabled = !canLink || level === 0 || notes === 0 || !textageTag || !versionCode || availabilityDisabled;
+    // BEGINNER で AC/INF どちらにもない場合は「B:-」表記
+    const displayText = (i === 0 && availabilityDisabled)
+      ? `${diff.label}:-`
+      : (level > 0 ? `${diff.label}:${level}` : `${diff.label}:-`);
 
     if (isDisabled) {
       const btn = document.createElement('span');
       btn.className = `chart-diff-btn chart-diff-btn--${diff.colorKey} chart-diff-btn--disabled`;
       btn.setAttribute('aria-disabled', 'true');
-      btn.textContent = level > 0 ? `${diff.label}:${level}` : `${diff.label}:-`;
+      btn.textContent = displayText;
       row.appendChild(btn);
     } else {
       const levelChar = levelToChar(level);
@@ -1205,8 +1287,8 @@ function createChartLinks(song) {
 
   const canLink = song.in_ac || song.in_inf;
 
-  container.appendChild(createDiffRow('SP', '1', song.textageTag, song.versionCode, song.sp, song.spNotes, canLink));
-  container.appendChild(createDiffRow('DP', 'D', song.textageTag, song.versionCode, song.dp, song.dpNotes, canLink));
+  container.appendChild(createDiffRow('SP', '1', song.textageTag, song.versionCode, song.sp, song.spNotes, canLink, song.chartVariant, song.filterMode));
+  container.appendChild(createDiffRow('DP', 'D', song.textageTag, song.versionCode, song.dp, song.dpNotes, canLink, song.chartVariant, song.filterMode));
 
   return container;
 }
@@ -1253,7 +1335,7 @@ function createScoreBadge(score) {
 }
 
 /** アーティスト・バージョンのサブ情報要素を生成 */
-function createSongMeta(artist, versionName) {
+function createSongMeta(artist) {
   const meta = document.createElement('div');
   meta.className = 'song-meta';
 
@@ -1264,15 +1346,21 @@ function createSongMeta(artist, versionName) {
     meta.appendChild(artistEl);
   }
 
+  return meta;
+}
+
+function createTitleRow(titleEl, versionName) {
+  const row = document.createElement('div');
+  row.className = 'song-title-row';
+  row.appendChild(titleEl);
   if (versionName) {
     const verEl = document.createElement('span');
     verEl.className = 'song-version';
     verEl.textContent = versionName;
     if (!showVersion) verEl.hidden = true;
-    meta.appendChild(verEl);
+    row.appendChild(verEl);
   }
-
-  return meta;
+  return row;
 }
 
 function renderResults(results) {
@@ -1302,8 +1390,8 @@ function renderResults(results) {
   titleEl.className = hasJapanese(top.title) ? 'top-card-title-jp' : 'top-card-title';
   titleEl.style.paddingTop = '0';
   titleEl.textContent = top.title;
-  topLeft.appendChild(titleEl);
-  topLeft.appendChild(createSongMeta(top.artist, top.versionName));
+  topLeft.appendChild(createTitleRow(titleEl, top.versionName));
+  topLeft.appendChild(createSongMeta(top.artist));
   topLeft.appendChild(createChartLinks(top));
 
   const topRight = document.createElement('div');
@@ -1335,8 +1423,8 @@ function renderResults(results) {
       const name = document.createElement('span');
       name.className = hasJapanese(item.title) ? 'candidate-name' : 'candidate-name candidate-name-latin';
       name.textContent = item.title;
-      nameBlock.appendChild(name);
-      nameBlock.appendChild(createSongMeta(item.artist, item.versionName));
+      nameBlock.appendChild(createTitleRow(name, item.versionName));
+      nameBlock.appendChild(createSongMeta(item.artist));
       nameBlock.appendChild(createChartLinks(item));
 
       row.appendChild(rank);
@@ -1357,6 +1445,16 @@ versionToggle.addEventListener('click', () => {
   versionToggle.textContent = `収録バージョン表示: ${showVersion ? 'ON' : 'OFF'}`;
   versionToggle.setAttribute('aria-pressed', showVersion);
   document.querySelectorAll('.song-version').forEach(el => { el.hidden = !showVersion; });
+});
+
+/* ============================================================
+   LEGGENDARIA全リンクトグル
+   ============================================================ */
+leggendariaToggle.addEventListener('click', () => {
+  leggendariaAllLink = !leggendariaAllLink;
+  leggendariaToggle.textContent = `LEGGENDARIA全リンク: ${leggendariaAllLink ? 'ON' : 'OFF'}`;
+  leggendariaToggle.setAttribute('aria-pressed', leggendariaAllLink);
+  triggerSearch();
 });
 
 /* ============================================================
@@ -1436,6 +1534,16 @@ searchInput.addEventListener('input', () => {
     mergedSongs = buildMergedSongs(raw.title, raw.normalized, raw.chart, raw.songInfo, raw.versionNames, raw.textageTag);
     // エイリアスデータをインライン定数から構築（fetchなし）
     aliasByTitle = buildAliasByTitle(ALIASES_DATA);
+    // Google スプレッドシートから可用性データをリアルタイム取得
+    // 失敗時は静的ファイル (data/chart-availability.js) にフォールバック
+    try {
+      chartAvailability = await fetchChartAvailabilityFromSheets();
+    } catch (e) {
+      console.warn('スプレッドシートからの取得に失敗。静的データを使用します:', e.message);
+      if (typeof CHART_AVAILABILITY_DATA !== 'undefined') {
+        chartAvailability = sanitizeChartAvailability(CHART_AVAILABILITY_DATA);
+      }
+    }
   } catch (e) {
     showError('楽曲データの取得に失敗しました。ページを再読み込みしてください。(' + e.message + ')');
   } finally {
