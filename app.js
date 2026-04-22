@@ -136,6 +136,87 @@ function sanitizeChartAvailability(raw) {
    ============================================================ */
 const AVAILABILITY_SPREADSHEET_ID = '1IiWAaxnh6fUfn-EaIU6-e8-GCYF6NfX-KnQF57c40_Q';
 const AVAILABILITY_SHEET_NAMES = ['beginner_ac', 'beginner_inf', 'leggendaria_ac', 'leggendaria_inf'];
+const ALIAS_SHEET_NAME = 'alias';
+
+/**
+ * gviz/tq CSV の1行をフィールド配列に分割する（引用符・カンマ対応）
+ * 例: "foo","bar,baz","123" → ["foo", "bar,baz", "123"]
+ */
+function parseCsvRow(line) {
+  const fields = [];
+  let inQuote = false;
+  let cur = '';
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuote) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } // "" → " (エスケープ)
+        else inQuote = false;
+      } else {
+        cur += ch;
+      }
+    } else {
+      if (ch === '"')      inQuote = true;
+      else if (ch === ',') { fields.push(cur); cur = ''; }
+      else                  cur += ch;
+    }
+  }
+  fields.push(cur);
+  return fields;
+}
+
+/**
+ * alias シートのCSVテキストを [{title, aliases:[...]},...] に変換する
+ * ヘッダー行から title / aliases の列位置を動的に判定するため、列順に依存しない
+ * aliases セル: カンマ区切りの略称リスト
+ */
+function parseAliasCsv(csvText) {
+  const lines = csvText.split(/\r?\n/);
+  if (lines.length < 2) return [];
+
+  // 1行目: ヘッダー行から title / aliases の列インデックスを特定
+  const headers    = parseCsvRow(lines[0].trim()).map(h => h.toLowerCase().trim());
+  const titleIdx   = headers.indexOf('title');
+  const aliasesIdx = headers.indexOf('aliases');
+  if (titleIdx === -1 || aliasesIdx === -1) {
+    console.warn('[エイリアス] ヘッダーに title/aliases が見つかりません。ヘッダー:', headers);
+    return [];
+  }
+  console.log(`[エイリアス] CSV列: title=col${titleIdx}, aliases=col${aliasesIdx}`);
+
+  const result = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const cols     = parseCsvRow(line);
+    const title    = cols[titleIdx] || '';
+    if (!title) continue;
+    const aliasStr = cols[aliasesIdx] || '';
+    const aliases  = aliasStr.split(',').map(s => s.trim()).filter(Boolean);
+    result.push({ title, aliases });
+  }
+  return result;
+}
+
+async function fetchAliasesFromSheets() {
+  const ts  = Date.now(); // キャッシュバスター
+  const url = `https://docs.google.com/spreadsheets/d/${AVAILABILITY_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&_t=${ts}&sheet=${ALIAS_SHEET_NAME}`;
+  console.log('[エイリアス] スプレッドシートへリクエスト中...', url);
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for alias sheet`);
+  const csv = await res.text();
+  console.log('[エイリアス] CSV先頭300文字:', csv.slice(0, 300));
+
+  const data = parseAliasCsv(csv);
+  if (data.length === 0) throw new Error('alias シートが空またはパース失敗');
+
+  // エイリアスがある曲だけ抽出してデバッグ表示
+  const withAliases = data.filter(e => e.aliases.length > 0);
+  console.log(`[エイリアス] 全行数: ${data.length}, エイリアスあり: ${withAliases.length}`);
+  console.log('[エイリアス] エイリアスあり先頭3件:', withAliases.slice(0, 3));
+
+  return data;
+}
 
 function parseAvailabilityCsv(csvText) {
   const lines = csvText.split(/\r?\n/).slice(1); // ヘッダー行スキップ
@@ -696,8 +777,10 @@ function buildMergedSongs(title, normalized, chart, songInfo, versionNames, text
 }
 
 /* ============================================================
-   エイリアスデータ（docs/ALIASES.json の内容をインライン埋め込み）
-   ALIASES.json を更新した場合はここも合わせて更新すること
+   エイリアスデータ（フォールバック用インライン定数）
+   通常は Google スプレッドシートの alias シートから取得する。
+   スプシ取得失敗時のみこちらを使用。
+   スプシを更新した場合、このデータも合わせて更新しておくと安全。
    ============================================================ */
 const ALIASES_DATA = [
   {"title":"Elemental Creation","aliases":["エレクリ","エレメンタルクリエーション"]},
@@ -1075,7 +1158,7 @@ function toHiragana(str) {
     String.fromCharCode(ch.charCodeAt(0) - 0x60));
 }
 
-/** ALIASES.json の配列から titleStr → [正規化エイリアス, ...] の Map を構築 */
+/** ALIASES.json / スプシ配列から titleStr → [正規化エイリアス, ...] の Map を構築 */
 function buildAliasByTitle(aliasData) {
   const map = new Map();
   for (const entry of aliasData) {
@@ -1086,6 +1169,7 @@ function buildAliasByTitle(aliasData) {
       .filter(Boolean);
     if (aliases.length > 0) map.set(entry.title, aliases);
   }
+  console.log(`[エイリアス] aliasByTitle 構築完了: ${map.size} 曲がエイリアスを保持`);
   return map;
 }
 
@@ -1235,14 +1319,19 @@ function createDiffRow(rowLabel, playStyle, textageTag, versionCode, levels, not
           availabilityDisabled = !chartAvailability['beginner_ac'].has(textageTag)
                               && !chartAvailability['beginner_inf'].has(textageTag);
         }
-      } else if (i === 4 && !leggendariaAllLink) {
-        if (filterMode === 'ac') {
-          availabilityDisabled = !chartAvailability['leggendaria_ac'].has(textageTag);
-        } else if (filterMode === 'inf') {
-          availabilityDisabled = !chartAvailability['leggendaria_inf'].has(textageTag);
-        } else { // 全曲: AC/INFどちらかにあればOK
-          availabilityDisabled = !chartAvailability['leggendaria_ac'].has(textageTag)
-                              && !chartAvailability['leggendaria_inf'].has(textageTag);
+      } else if (i === 4) {
+        // 黒譜面リンクON かつ INFフィルター以外 → スプシチェックをスキップ（全リンク有効）
+        // INFフィルター時は黒譜面リンクON でも leggendaria_inf のチェックを強制
+        const skipCheck = leggendariaAllLink && filterMode !== 'inf';
+        if (!skipCheck && chartAvailability && textageTag) {
+          if (filterMode === 'ac') {
+            availabilityDisabled = !chartAvailability['leggendaria_ac'].has(textageTag);
+          } else if (filterMode === 'inf') {
+            availabilityDisabled = !chartAvailability['leggendaria_inf'].has(textageTag);
+          } else { // 全曲: AC/INFどちらかにあればOK
+            availabilityDisabled = !chartAvailability['leggendaria_ac'].has(textageTag)
+                                && !chartAvailability['leggendaria_inf'].has(textageTag);
+          }
         }
       }
     }
@@ -1448,11 +1537,11 @@ versionToggle.addEventListener('click', () => {
 });
 
 /* ============================================================
-   LEGGENDARIA全リンクトグル
+   黒譜面リンクトグル
    ============================================================ */
 leggendariaToggle.addEventListener('click', () => {
   leggendariaAllLink = !leggendariaAllLink;
-  leggendariaToggle.textContent = `LEGGENDARIA全リンク: ${leggendariaAllLink ? 'ON' : 'OFF'}`;
+  leggendariaToggle.textContent = `黒譜面リンク: ${leggendariaAllLink ? 'ON' : 'OFF'}`;
   leggendariaToggle.setAttribute('aria-pressed', leggendariaAllLink);
   triggerSearch();
 });
@@ -1532,8 +1621,47 @@ searchInput.addEventListener('input', () => {
   try {
     const raw = await loadSongData();
     mergedSongs = buildMergedSongs(raw.title, raw.normalized, raw.chart, raw.songInfo, raw.versionNames, raw.textageTag);
-    // エイリアスデータをインライン定数から構築（fetchなし）
-    aliasByTitle = buildAliasByTitle(ALIASES_DATA);
+    // Google スプレッドシートからエイリアスをリアルタイム取得
+    // 失敗時はインライン定数 ALIASES_DATA にフォールバック
+    try {
+      const aliasesData = await fetchAliasesFromSheets();
+      aliasByTitle = buildAliasByTitle(aliasesData);
+      console.log(`[エイリアス] ✅ スプレッドシートから読み込み成功 (全${aliasesData.length}行, エイリアスあり${aliasByTitle.size}曲)`);
+    } catch (e) {
+      console.warn(`[エイリアス] ⚠️ スプレッドシートから取得失敗 → インラインデータを使用 (${ALIASES_DATA.length} 曲)`);
+      console.warn('[エイリアス] 失敗理由:', e.message);
+      aliasByTitle = buildAliasByTitle(ALIASES_DATA);
+    }
+
+    // デバッグ用グローバル関数（ブラウザコンソールから aliasDebug.check('曲名') で確認できる）
+    window.aliasDebug = {
+      /** aliasByTitle に登録されている曲名一覧（エイリアスあり）を返す */
+      list: () => [...(aliasByTitle?.keys() ?? [])],
+      /** 指定曲名のエイリアスを表示 */
+      check: (title) => {
+        const aliases = aliasByTitle?.get(title);
+        console.log(`[aliasDebug] "${title}" → `, aliases ?? '(登録なし)');
+        // 部分一致で近い曲名も探す
+        const near = [];
+        for (const k of (aliasByTitle?.keys() ?? [])) {
+          if (k.includes(title) || title.includes(k)) near.push(k);
+        }
+        if (near.length) console.log('[aliasDebug] 部分一致の曲名:', near);
+        return aliases;
+      },
+      /** 指定クエリで検索したときのスコア上位5件を表示 */
+      searchScore: (query) => {
+        if (!mergedSongs || !aliasByTitle) return console.warn('データ未ロード');
+        const qNoSp = normalizeNoSpaces(query);
+        const results = mergedSongs
+          .map(s => ({ title: s.title, alias: computeAliasScore(qNoSp, s.title) }))
+          .filter(r => r.alias > 0)
+          .sort((a, b) => b.alias - a.alias)
+          .slice(0, 5);
+        console.log(`[aliasDebug] "${query}" エイリアススコア上位:`, results);
+        return results;
+      },
+    };
     // Google スプレッドシートから可用性データをリアルタイム取得
     // 失敗時は静的ファイル (data/chart-availability.js) にフォールバック
     try {
