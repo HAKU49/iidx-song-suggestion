@@ -33,10 +33,7 @@
     <p class="sidebar-nav-label">CONTENTS</p>
     <ul class="sidebar-nav">
       <li><a href="#about">アプリについて</a></li>
-      <li><a href="#datasource">データ提供</a></li>
       <li><a href="#planned">今後の予定</a></li>
-      <li><a href="#credits">クレジット</a></li>
-      <li><a href="#licenses">ライセンス</a></li>
     </ul>
   </aside>
 
@@ -47,131 +44,34 @@
     <!-- アプリについて -->
     <section class="section" id="about">
       <div class="section-header">
-        <span class="section-icon">&#9835;</span>
-        <h2 class="section-title">ABOUT</h2>
+        <h2 class="section-title">アプリについて</h2>
       </div>
       <div class="section-body">
-        <p>beatmania IIDX の楽曲を、あいまいな入力からでも検索できるアプリです。</p>
-        <ul class="info-list">
-          <li>
-            <span>曲名を正確に覚えていなくても、スペルミスや読み仮名でも検索できます</span>
-          </li>
-          <li>
-            <span>コミュニティで使われている略称・スラングからも検索できます</span>
-          </li>
-          <li>
-            <span>AC版（アーケード）/ INFINITAS の絞り込みフィルターに対応しています</span>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- データ提供 -->
-    <section class="section" id="datasource">
-      <div class="section-header">
-        <span class="section-icon">&#128190;</span>
-        <h2 class="section-title">DATA SOURCE</h2>
-      </div>
-      <div class="section-body">
-        <p>以下のデータを使用させていただいています。</p>
-        <ul class="info-list">
-          <li>
-            <span>
-              <strong>chinimuruhi 様</strong> が公開されている IIDX 関連データ
-              <ul class="sub-list">
-                <li>楽曲一覧・難易度情報・バージョン情報などの JSON データ</li>
-              </ul>
-            </span>
-          </li>
-          <li>
-            <span>
-              <strong>TexTage 様</strong>（管理人：泡井七月 様）のデータ
-              <ul class="sub-list">
-                <li>上記データのクロール元として利用されているデータベースサイト</li>
-              </ul>
-            </span>
-          </li>
-        </ul>
+        <p>beatmania IIDX の楽曲を、あいまいな入力からでも検索できるアプリです。<br>
+        検索結果から、楽曲名のコピー、Textage様の譜面へのリンクができます。<br>
+        AC版（アーケード）/ INFINITAS の絞り込みフィルターに対応しています。</p>
+        <p class="note">※AC削除曲かつINFINITASでプレーできない曲、CSのみ収録曲は現時点でTexTage様の譜面リンクは未実装です。（実装予定）</p>
       </div>
     </section>
 
     <!-- 今後の実装予定 -->
     <section class="section" id="planned">
       <div class="section-header">
-        <span class="section-icon">&#128640;</span>
-        <h2 class="section-title">PLANNED FEATURES</h2>
+        <h2 class="section-title">今後の予定</h2>
       </div>
       <div class="section-body">
         <ul class="info-list">
           <li>
             <span>
-              各楽曲に TexTage 様の譜面ページへのリンクを追加予定
-              <span class="badge badge-wip">WIP</span>
+              AC削除曲かつINFINITAS未収録曲とCSのみの収録曲に TexTage 様の譜面ページへのリンクを追加
             </span>
           </li>
           <li>
             <span>
-              曲名略称の追加・検索性の向上
-              <span class="badge badge-wip">WIP</span>
-              <ul class="sub-list">
-                <li>2026/4/2 時点では一部楽曲のみ略称を登録済み</li>
-                <li>SNS などで使われている略称・スラングを順次追加予定</li>
-              </ul>
+              検索性の向上（アルゴリズム改善、曲名略称・スラングの追加など）
             </span>
           </li>
         </ul>
-      </div>
-    </section>
-
-    <!-- クレジット -->
-    <section class="section" id="credits">
-      <div class="section-header">
-        <span class="section-icon">&#9825;</span>
-        <h2 class="section-title">CREDITS</h2>
-      </div>
-      <div class="section-body">
-        <div class="credit-grid">
-          <div class="credit-card">
-            <div class="credit-card-name">chinimuruhi 様</div>
-            <div class="credit-card-desc">beatmania IIDX の楽曲・難易度データを IIDX-Data-Table として公開してくださっています。本アプリの楽曲データはこちらを利用しています。</div>
-          </div>
-          <div class="credit-card">
-            <div class="credit-card-name">TexTage 様（管理人：泡井七月 様）</div>
-            <div class="credit-card-desc">beatmania IIDX の譜面情報を網羅したデータベースサイト。上記データの元情報として利用されています。</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ライセンス -->
-    <section class="section" id="licenses">
-      <div class="section-header">
-        <span class="section-icon">&#128196;</span>
-        <h2 class="section-title">LICENSES</h2>
-      </div>
-      <div class="section-body">
-        <table class="license-table">
-          <thead>
-            <tr>
-              <th>NAME</th>
-              <th>LICENSE</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Orbitron</td>
-              <td>SIL Open Font License 1.1 — Google Fonts</td>
-            </tr>
-            <tr>
-              <td>Noto Sans JP</td>
-              <td>SIL Open Font License 1.1 — Google Fonts</td>
-            </tr>
-            <tr>
-              <td>Double Metaphone アルゴリズム</td>
-              <td>Lawrence Philips 氏 考案。英語音韻類似検索に使用</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </section>
 

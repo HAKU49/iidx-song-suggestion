@@ -179,10 +179,8 @@ function parseAliasCsv(csvText) {
   const titleIdx   = headers.indexOf('title');
   const aliasesIdx = headers.indexOf('aliases');
   if (titleIdx === -1 || aliasesIdx === -1) {
-    console.warn('[エイリアス] ヘッダーに title/aliases が見つかりません。ヘッダー:', headers);
     return [];
   }
-  console.log(`[エイリアス] CSV列: title=col${titleIdx}, aliases=col${aliasesIdx}`);
 
   const result = [];
   for (let i = 1; i < lines.length; i++) {
@@ -201,19 +199,12 @@ function parseAliasCsv(csvText) {
 async function fetchAliasesFromSheets() {
   const ts  = Date.now(); // キャッシュバスター
   const url = `https://docs.google.com/spreadsheets/d/${AVAILABILITY_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&_t=${ts}&sheet=${ALIAS_SHEET_NAME}`;
-  console.log('[エイリアス] スプレッドシートへリクエスト中...', url);
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`HTTP ${res.status} for alias sheet`);
   const csv = await res.text();
-  console.log('[エイリアス] CSV先頭300文字:', csv.slice(0, 300));
 
   const data = parseAliasCsv(csv);
   if (data.length === 0) throw new Error('alias シートが空またはパース失敗');
-
-  // エイリアスがある曲だけ抽出してデバッグ表示
-  const withAliases = data.filter(e => e.aliases.length > 0);
-  console.log(`[エイリアス] 全行数: ${data.length}, エイリアスあり: ${withAliases.length}`);
-  console.log('[エイリアス] エイリアスあり先頭3件:', withAliases.slice(0, 3));
 
   return data;
 }
@@ -1169,7 +1160,6 @@ function buildAliasByTitle(aliasData) {
       .filter(Boolean);
     if (aliases.length > 0) map.set(entry.title, aliases);
   }
-  console.log(`[エイリアス] aliasByTitle 構築完了: ${map.size} 曲がエイリアスを保持`);
   return map;
 }
 
@@ -1626,48 +1616,15 @@ searchInput.addEventListener('input', () => {
     try {
       const aliasesData = await fetchAliasesFromSheets();
       aliasByTitle = buildAliasByTitle(aliasesData);
-      console.log(`[エイリアス] ✅ スプレッドシートから読み込み成功 (全${aliasesData.length}行, エイリアスあり${aliasByTitle.size}曲)`);
     } catch (e) {
-      console.warn(`[エイリアス] ⚠️ スプレッドシートから取得失敗 → インラインデータを使用 (${ALIASES_DATA.length} 曲)`);
-      console.warn('[エイリアス] 失敗理由:', e.message);
       aliasByTitle = buildAliasByTitle(ALIASES_DATA);
     }
 
-    // デバッグ用グローバル関数（ブラウザコンソールから aliasDebug.check('曲名') で確認できる）
-    window.aliasDebug = {
-      /** aliasByTitle に登録されている曲名一覧（エイリアスあり）を返す */
-      list: () => [...(aliasByTitle?.keys() ?? [])],
-      /** 指定曲名のエイリアスを表示 */
-      check: (title) => {
-        const aliases = aliasByTitle?.get(title);
-        console.log(`[aliasDebug] "${title}" → `, aliases ?? '(登録なし)');
-        // 部分一致で近い曲名も探す
-        const near = [];
-        for (const k of (aliasByTitle?.keys() ?? [])) {
-          if (k.includes(title) || title.includes(k)) near.push(k);
-        }
-        if (near.length) console.log('[aliasDebug] 部分一致の曲名:', near);
-        return aliases;
-      },
-      /** 指定クエリで検索したときのスコア上位5件を表示 */
-      searchScore: (query) => {
-        if (!mergedSongs || !aliasByTitle) return console.warn('データ未ロード');
-        const qNoSp = normalizeNoSpaces(query);
-        const results = mergedSongs
-          .map(s => ({ title: s.title, alias: computeAliasScore(qNoSp, s.title) }))
-          .filter(r => r.alias > 0)
-          .sort((a, b) => b.alias - a.alias)
-          .slice(0, 5);
-        console.log(`[aliasDebug] "${query}" エイリアススコア上位:`, results);
-        return results;
-      },
-    };
     // Google スプレッドシートから可用性データをリアルタイム取得
     // 失敗時は静的ファイル (data/chart-availability.js) にフォールバック
     try {
       chartAvailability = await fetchChartAvailabilityFromSheets();
     } catch (e) {
-      console.warn('スプレッドシートからの取得に失敗。静的データを使用します:', e.message);
       if (typeof CHART_AVAILABILITY_DATA !== 'undefined') {
         chartAvailability = sanitizeChartAvailability(CHART_AVAILABILITY_DATA);
       }
